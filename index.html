@@ -3,810 +3,2472 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PRCarnage</title>
+<title>PRCARNAGE</title>
 <style>
+  /* ===== Root reset ===== */
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0a0f; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; font-family: 'Courier New', monospace; }
-  #game-container { position: relative; }
-  #hud { position: absolute; top: 10px; left: 10px; color: #ff4444; font-size: 13px; text-shadow: 0 0 8px #ff2222; z-index: 10; pointer-events: none; }
-  #hud .kills { color: #ffaa00; text-shadow: 0 0 8px #ff8800; }
-  #bullet-time-bar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); width: 200px; height: 6px; background: #111; border: 1px solid #333; border-radius: 3px; z-index: 10; }
-  #bullet-time-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #00aaff, #00ffee); border-radius: 3px; transition: width 0.05s; }
-  #bt-label { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); color: #00ccff; font-size: 10px; text-shadow: 0 0 6px #00aaff; z-index: 10; letter-spacing: 2px; white-space: nowrap; }
-  #controls { position: absolute; bottom: 36px; right: 10px; color: #444; font-size: 10px; line-height: 1.6; z-index: 10; text-align: right; }
-  #title-screen { position: absolute; inset: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
-  #title-screen h1 { font-size: 52px; color: #ff2200; text-shadow: 0 0 30px #ff2200, 0 0 60px #aa1100; letter-spacing: 6px; margin-bottom: 10px; }
-  #title-screen .sub { color: #888; font-size: 12px; letter-spacing: 4px; margin-bottom: 40px; }
-  #title-screen .start { color: #ffaa00; font-size: 14px; letter-spacing: 2px; animation: blink 1.2s step-end infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-  #death-screen { position: absolute; inset: 0; background: rgba(180,0,0,0.15); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
-  #death-screen h2 { font-size: 48px; color: #ff0000; text-shadow: 0 0 40px #ff0000; letter-spacing: 4px; }
-  #death-screen .restart { color: #aaa; font-size: 13px; margin-top: 20px; letter-spacing: 2px; animation: blink 1.2s step-end infinite; }
-  #win-screen { position: absolute; inset: 0; background: rgba(0,80,0,0.15); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
-  #win-screen h2 { font-size: 42px; color: #00ff88; text-shadow: 0 0 40px #00ff88; letter-spacing: 4px; }
-  #win-screen .restart { color: #aaa; font-size: 13px; margin-top: 20px; letter-spacing: 2px; animation: blink 1.2s step-end infinite; }
+  html, body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    color: #ccc;
+    width: 100%;
+    height: 100%;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #game { position: relative; }
+  canvas { display: block; image-rendering: pixelated; }
+
+  /* ===== Film grain overlay (CSS) ===== */
+  /* A looping SVG noise pattern, lightly blended over the canvas. Adds texture. */
+  #film-grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0.08;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    animation: grain 0.4s steps(5) infinite;
+  }
+  @keyframes grain {
+    0%   { transform: translate(0, 0); }
+    20%  { transform: translate(-2%, 1%); }
+    40%  { transform: translate(1%, -2%); }
+    60%  { transform: translate(-1%, 2%); }
+    80%  { transform: translate(2%, -1%); }
+    100% { transform: translate(0, 0); }
+  }
+
+  /* Subtle scanline streak for that neon-noir feel */
+  #scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 49;
+    opacity: 0.06;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0,
+      rgba(0,0,0,0) 2px,
+      rgba(255,255,255,0.4) 3px,
+      rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode: overlay;
+  }
 </style>
 </head>
 <body>
-<div id="game-container">
-  <div id="hud">
-    <div>HP: <span id="hp">100</span></div>
-    <div class="kills">KILLS: <span id="kills">0</span></div>
-    <div id="bt-label">BULLET TIME [SHIFT]</div>
-    <div id="bullet-time-bar"><div id="bullet-time-fill"></div></div>
-  </div>
-  <div id="controls">
-    A/D — move<br>
-    W / SPACE — jump<br>
-    S — slide<br>
-    SHIFT — bullet time<br>
-    CLICK — shoot<br>
-    MID-AIR + A/D — dive
-  </div>
-  <div id="title-screen">
-    <h1>PRCARNAGE</h1>
-    <div class="sub">MANCHESTER STREETS · BULLET TIME</div>
-    <div class="start">CLICK OR PRESS ANY KEY TO START</div>
-  </div>
-  <div id="death-screen">
-    <h2>YOU DIED</h2>
-    <div class="restart">PRESS R OR CLICK TO RESTART</div>
-  </div>
-  <div id="win-screen">
-    <h2>CARNAGE COMPLETE</h2>
-    <div class="restart">PRESS R OR CLICK TO RESTART</div>
-  </div>
-</div>
+  <div id="game"></div>
+  <div id="film-grain"></div>
+  <div id="scanlines"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
-<script>
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
-const W = 900, H = 500;
-const GROUND_Y = H - 80;
-const PLAYER_W = 22, PLAYER_H = 40;
-const BULLET_SPEED = 680;
-const ENEMY_SPEED = 58;
-const GRAVITY = 900;
-const JUMP_VEL = -480;
-const SLIDE_SPEED = 280;
-const DIVE_VEL = 380;
-const BT_MAX = 100;
-const BT_DRAIN = 28;   // per second while active
-const BT_REGEN = 18;   // per second while inactive
-const BT_MIN_TO_ACTIVATE = 15;
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+  <script>
+  /* ==========================================================================
+     PRCARNAGE — gritty 2D side-scroller on Manchester streets
+     Single-file Phaser 3 game.
 
-let gameStarted = false;
-let gameOver = false;
-let gameWon = false;
+     Scenes: CharacterSelect → Game → Death / Win
+     All art generated from Phaser Graphics primitives.
+     ========================================================================== */
 
-// ─── PHASER SCENE ───────────────────────────────────────────────────────────
-class GameScene extends Phaser.Scene {
-  constructor() { super('GameScene'); }
+  // =============================================================================
+  // CONSTANTS
+  // =============================================================================
+  const GW = 1280;           // game viewport width
+  const GH = 720;            // game viewport height
+  const WORLD_W = 3000;      // full level width
+  const GROUND_Y = 620;      // where the street surface sits
+  const GRAVITY = 1600;      // base gravity (px/s^2)
 
-  create() {
-    this.cameras.main.setBackgroundColor('#0b0b12');
-    this.worldWidth = 2400;
+  const COYOTE_MS = 120;     // coyote-time grace window (ms)
+  const JUMP_BUFFER_MS = 100;// jump pressed slightly before landing
+  const JUMP_VEL = -580;     // upward velocity on jump
+  const DIVE_VEL_X = 700;    // horizontal velocity on dive
+  const DIVE_VEL_Y = 500;    // downward velocity on dive
+  const SLIDE_VEL = 440;     // slide launch velocity
+  const SLIDE_MS = 500;      // slide duration
+  const BULLET_SPEED = 950;
+  const BULLET_GRAVITY = 120;// bullets drop slightly
+  const PLAYER_FIRE_CD = 180;// ms between shots (pistol)
+  const BULLET_TIME_FACTOR = 0.25; // world timescale during bullet time
+  const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
+  const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
 
-    // ── state ──
-    this.btMeter = BT_MAX;
-    this.btActive = false;
-    this.timeScale = 1.0;
-    this.kills = 0;
-    this.playerHP = 100;
-    this.isDead = false;
-    this.isWon = false;
-    this.bullets = [];
-    this.enemies = [];
-    this.particles = [];
-    this.rainDrops = [];
-    this.lastShot = 0;
-    this.slideTimer = 0;
-    this.diveUsed = false;
+  // =============================================================================
+  // CHARACTERS — full roster. All 6 unlocked in v3.
+  // =============================================================================
+  const CHARACTERS = {
+    connor: {
+      id: 'connor', name: 'CONNOR', unlocked: true,
+      stats: { speed: 8, hp: 7, damage: 7 },
+      powerup: 'GANGSTER MODE',
+      powerupDesc: 'Dual pistols, +50% speed (8s)',
+    },
+    callum: {
+      id: 'callum', name: 'CALLUM', unlocked: true,
+      stats: { speed: 6, hp: 6, damage: 6 },
+      powerup: 'LESLIE CHOW MODE',
+      powerupDesc: 'Auto-melee, 2x speed (6s)',
+    },
+    finley: {
+      id: 'finley', name: 'FINLEY', unlocked: true,
+      stats: { speed: 10, hp: 4, damage: 6 },
+      powerup: 'GUINNESS HERO',
+      powerupDesc: 'Invincible, golden glow (6s)',
+    },
+    declan: {
+      id: 'declan', name: 'DECLAN', unlocked: true,
+      stats: { speed: 7, hp: 4, damage: 8 },
+      powerup: 'FROG MODE',
+      powerupDesc: 'Triple jump, F=tongue (6s)',
+    },
+    aaron: {
+      id: 'aaron', name: 'AARON', unlocked: true,
+      stats: { speed: 4, hp: 10, damage: 6 },
+      powerup: 'GOBLIN MODE',
+      powerupDesc: 'Crawl, contact kill (8s)',
+    },
+    charlie: {
+      id: 'charlie', name: 'CHARLIE', unlocked: true,
+      stats: { speed: 3, hp: 10, damage: 9 },
+      powerup: 'GETS FATTER',
+      powerupDesc: '2x size, knockback kill (6s)',
+    },
+  };
+  const CHAR_ORDER = ['connor', 'callum', 'finley', 'declan', 'aaron', 'charlie'];
 
-    this._buildLevel();
-    this._buildPlayer();
-    this._buildEnemies();
-    this._buildRain();
-    this._setupInput();
-    this._setupCamera();
+  // Powerup duration in milliseconds, per character
+  const POWERUP_DURATION = {
+    connor: 8000, callum: 6000, finley: 6000,
+    declan: 6000, aaron: 8000, charlie: 6000,
+  };
 
-    // crosshair cursor
-    this.input.setDefaultCursor('crosshair');
+  // Derived player tuning from the 1-10 stat values
+  const statToSpeed  = s => 180 + s * 22;   // 200 -> 400 px/s
+  const statToHP     = s => 40 + s * 14;    // 54 -> 180 hp
+  const statToDamage = s => 18 + s * 7;     // 25 -> 88
+
+  // =============================================================================
+  // WORLD CONTENT — neon signs, platforms, enemy spawn points
+  // =============================================================================
+  const NEON_SIGNS = [
+    { x: 300,  y: 180, text: 'AFFLECKS',    color: 0xff2288 },
+    { x: 720,  y: 230, text: 'PRINTWORKS',  color: 0x33ffbb },
+    { x: 1120, y: 160, text: 'ARNDALE',     color: 0xffaa22 },
+    { x: 1520, y: 210, text: 'CURRY MILE',  color: 0xff4422 },
+    { x: 1900, y: 175, text: 'PICCADILLY',  color: 0x33aaff },
+    { x: 2300, y: 230, text: "SPOONS",      color: 0xffff33 },
+    { x: 2700, y: 190, text: 'KEBAB',       color: 0xff33dd },
+  ];
+
+  // 8 platforms across the level
+  const PLATFORM_DATA = [
+    { x: 400,  y: 480, w: 140 },
+    { x: 700,  y: 400, w: 120 },
+    { x: 1000, y: 490, w: 180 },
+    { x: 1300, y: 410, w: 140 },
+    { x: 1620, y: 350, w: 160 },
+    { x: 1950, y: 460, w: 140 },
+    { x: 2250, y: 390, w: 170 },
+    { x: 2600, y: 470, w: 200 },
+  ];
+
+  // 6 enemies — mixture of types spread across the level
+  const ENEMY_SPAWNS = [
+    { x: 550,  type: 'chav' },
+    { x: 950,  type: 'hoodie' },
+    { x: 1380, type: 'bouncer' },
+    { x: 1830, type: 'chav' },
+    { x: 2200, type: 'hoodie' },
+    { x: 2780, type: 'bouncer' },
+  ];
+
+  // =============================================================================
+  // CHARACTER DRAW FUNCTIONS
+  // Each draws a ~50x72 sprite centered at (cx, cy).
+  // Used by the character-select cards AND for generating in-game player texture.
+  // =============================================================================
+
+  function drawConnor(g, cx, cy, opt = {}) {
+    // Baggy jeans
+    g.fillStyle(0x1b2438);
+    g.fillRect(cx - 12, cy + 4, 24, 30);
+    // Fresh trainers (white w/ red stripe)
+    g.fillStyle(0xf5f5f5);
+    g.fillRect(cx - 13, cy + 30, 11, 6);
+    g.fillRect(cx + 2,  cy + 30, 11, 6);
+    g.fillStyle(0xaa2222);
+    g.fillRect(cx - 13, cy + 34, 11, 2);
+    g.fillRect(cx + 2,  cy + 34, 11, 2);
+    // Oversized jacket (shoreline mafia vibe) — gold when gangster
+    g.fillStyle(opt.gangster ? 0xc9a14a : 0x262626);
+    g.fillRect(cx - 17, cy - 14, 34, 26);
+    // Jacket detail line
+    g.fillStyle(opt.gangster ? 0xaa8530 : 0x1a1a1a);
+    g.fillRect(cx - 1, cy - 14, 2, 26);
+    // Skin — head
+    g.fillStyle(0xf0c49a);
+    g.fillCircle(cx, cy - 22, 10);
+    // Curly dark brown / dirty blonde hair — stacked circles
+    g.fillStyle(0x6b4a28);
+    g.fillCircle(cx - 6, cy - 28, 5);
+    g.fillCircle(cx + 6, cy - 28, 5);
+    g.fillCircle(cx,     cy - 32, 5);
+    g.fillCircle(cx - 9, cy - 24, 4);
+    g.fillCircle(cx + 9, cy - 24, 4);
+    g.fillStyle(0xd4a564);
+    g.fillCircle(cx - 2, cy - 30, 3);
+    g.fillCircle(cx + 4, cy - 29, 3);
+    // Eyes / sunglasses
+    if (opt.gangster) {
+      g.fillStyle(0x000000);
+      g.fillRect(cx - 9, cy - 22, 18, 4);
+      // lens glint
+      g.fillStyle(0xffffff);
+      g.fillRect(cx - 6, cy - 22, 1, 1);
+      g.fillRect(cx + 4, cy - 22, 1, 1);
+    } else {
+      g.fillStyle(0x000000);
+      g.fillRect(cx - 4, cy - 22, 2, 2);
+      g.fillRect(cx + 2, cy - 22, 2, 2);
+    }
   }
 
-  // ─── LEVEL ───────────────────────────────────────────────────────────────
-  _buildLevel() {
-    const g = this.add.graphics();
-    const ww = this.worldWidth;
+  function drawCallum(g, cx, cy) {
+    // Baggy joggers
+    g.fillStyle(0x2a2a2a);
+    g.fillRect(cx - 10, cy + 5, 20, 28);
+    // Red/white adidas gazelles
+    g.fillStyle(0xcc2222);
+    g.fillRect(cx - 12, cy + 30, 11, 5);
+    g.fillRect(cx + 1,  cy + 30, 11, 5);
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 12, cy + 34, 11, 2);
+    g.fillRect(cx + 1,  cy + 34, 11, 2);
+    // North Face quarter-zip (black)
+    g.fillStyle(0x141414);
+    g.fillRect(cx - 13, cy - 14, 26, 26);
+    // White logo on chest
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 3, cy - 10, 6, 2);
+    // Zipper
+    g.fillStyle(0x3a3a3a);
+    g.fillRect(cx, cy - 14, 1, 14);
+    // Skin — slightly warmer tan
+    g.fillStyle(0xe8c49a);
+    g.fillCircle(cx, cy - 22, 9);
+    // Bowl cut (flat top, dark hair)
+    g.fillStyle(0x0a0a0a);
+    g.fillRect(cx - 10, cy - 30, 20, 8);
+    g.fillRect(cx - 10, cy - 23, 2, 5);
+    g.fillRect(cx + 8,  cy - 23, 2, 5);
+    // Eyes
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
 
-    // ── sky gradient effect (banded rects) ──
-    const skyColors = [0x0b0b12, 0x0d0d18, 0x0f0f1e, 0x11111f, 0x0d0d16];
-    for (let i = 0; i < skyColors.length; i++) {
-      g.fillStyle(skyColors[i], 1);
-      g.fillRect(0, i * (GROUND_Y / skyColors.length), ww, GROUND_Y / skyColors.length + 2);
+  function drawFinley(g, cx, cy) {
+    // Cycling lycra — blue shorts / leggings
+    g.fillStyle(0x1a5acc);
+    g.fillRect(cx - 9, cy + 5, 18, 28);
+    // Cycling shoes
+    g.fillStyle(0x101010);
+    g.fillRect(cx - 11, cy + 30, 9, 5);
+    g.fillRect(cx + 2,  cy + 30, 9, 5);
+    // GoreTex jacket (dark green)
+    g.fillStyle(0x3a6a2a);
+    g.fillRect(cx - 13, cy - 14, 26, 26);
+    // Reflective strip
+    g.fillStyle(0xf0f0f0);
+    g.fillRect(cx - 12, cy - 13, 24, 2);
+    // Skin
+    g.fillStyle(0xf5d1ad);
+    g.fillCircle(cx, cy - 22, 9);
+    // Freckles
+    g.fillStyle(0xaa7744);
+    g.fillRect(cx - 4, cy - 20, 1, 1);
+    g.fillRect(cx - 1, cy - 19, 1, 1);
+    g.fillRect(cx + 2, cy - 20, 1, 1);
+    g.fillRect(cx + 4, cy - 19, 1, 1);
+    g.fillRect(cx - 3, cy - 17, 1, 1);
+    // French crop
+    g.fillStyle(0x4a3a2a);
+    g.fillRect(cx - 9, cy - 30, 18, 5);
+    g.fillRect(cx - 9, cy - 25, 5, 3); // fringe
+    // Eyes
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
+
+  function drawDeclan(g, cx, cy) {
+    // Skinny build — narrow legs
+    g.fillStyle(0x0a0a0a);
+    g.fillRect(cx - 7, cy + 5, 14, 28);
+    // Jordans (red/black)
+    g.fillStyle(0xcc2222);
+    g.fillRect(cx - 9, cy + 30, 9, 5);
+    g.fillRect(cx + 1, cy + 30, 9, 5);
+    g.fillStyle(0x0a0a0a);
+    g.fillRect(cx - 9, cy + 34, 9, 2);
+    g.fillRect(cx + 1, cy + 34, 9, 2);
+    // Nike sweater (grey)
+    g.fillStyle(0x555555);
+    g.fillRect(cx - 11, cy - 14, 22, 26);
+    // Swoosh
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 4, cy - 8, 6, 1);
+    g.fillRect(cx + 2, cy - 9, 1, 1);
+    // Head — Simpsons yellow
+    g.fillStyle(0xffdd1a);
+    g.fillCircle(cx, cy - 22, 9);
+    // Short dark hair
+    g.fillStyle(0x3a2a1a);
+    g.fillRect(cx - 9, cy - 30, 18, 5);
+    // Eyes
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
+
+  function drawAaron(g, cx, cy) {
+    // Chinos (beige)
+    g.fillStyle(0xc9a97a);
+    g.fillRect(cx - 10, cy + 5, 20, 28);
+    // Loafers (brown)
+    g.fillStyle(0x5a3a1a);
+    g.fillRect(cx - 12, cy + 30, 11, 5);
+    g.fillRect(cx + 1,  cy + 30, 11, 5);
+    // Light-blue shirt
+    g.fillStyle(0xaaccee);
+    g.fillRect(cx - 13, cy - 14, 26, 26);
+    // Button line
+    g.fillStyle(0x1a1a1a);
+    g.fillRect(cx, cy - 10, 1, 18);
+    // Collar
+    g.fillStyle(0x8aaacc);
+    g.fillRect(cx - 6, cy - 14, 12, 3);
+    // Head
+    g.fillStyle(0xe8c090);
+    g.fillCircle(cx, cy - 22, 9);
+    // Slicked quiff (brown)
+    g.fillStyle(0x4a2a1a);
+    g.fillRect(cx - 8, cy - 28, 16, 6);
+    g.fillRect(cx - 3, cy - 32, 6, 4);
+    // Eyes
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
+
+  function drawCharlie(g, cx, cy) {
+    // Fat build — wider
+    // Tracksuit bottoms (black w/ white stripes)
+    g.fillStyle(0x141414);
+    g.fillRect(cx - 15, cy + 5, 30, 28);
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 14, cy + 5, 2, 28);
+    g.fillRect(cx + 12, cy + 5, 2, 28);
+    // Trainers
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 16, cy + 30, 12, 5);
+    g.fillRect(cx + 4,  cy + 30, 12, 5);
+    // Nike top (black)
+    g.fillStyle(0x141414);
+    g.fillRect(cx - 19, cy - 14, 38, 26);
+    // Swoosh
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 9, cy - 8, 10, 2);
+    // Head (bigger)
+    g.fillStyle(0xe5b88a);
+    g.fillCircle(cx, cy - 20, 11);
+    // French crop
+    g.fillStyle(0x3a2a1a);
+    g.fillRect(cx - 11, cy - 28, 22, 5);
+    g.fillRect(cx - 11, cy - 23, 5, 3);
+    // Eyes
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 4, cy - 20, 2, 1);
+    g.fillRect(cx + 2, cy - 20, 2, 1);
+  }
+
+  const CHARACTER_DRAWERS = {
+    connor: drawConnor, callum: drawCallum, finley: drawFinley,
+    declan: drawDeclan, aaron:  drawAaron,  charlie: drawCharlie,
+  };
+
+  // =============================================================================
+  // ENEMY DRAW FUNCTIONS
+  // =============================================================================
+  function drawChav(g, cx, cy) {
+    // Light blue Adidas tracksuit bottoms
+    g.fillStyle(0x4a88cc);
+    g.fillRect(cx - 10, cy + 5, 20, 28);
+    // White three-stripe down legs
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 9, cy + 6, 2, 26);
+    g.fillRect(cx + 7, cy + 6, 2, 26);
+    // White trainers
+    g.fillRect(cx - 12, cy + 30, 11, 6);
+    g.fillRect(cx + 1,  cy + 30, 11, 6);
+    // Adidas top
+    g.fillStyle(0x4a88cc);
+    g.fillRect(cx - 13, cy - 14, 26, 26);
+    // Three stripes
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 13, cy - 12, 26, 2);
+    g.fillRect(cx - 13, cy - 7,  26, 2);
+    g.fillRect(cx - 13, cy - 2,  26, 2);
+    // Head
+    g.fillStyle(0xe0b88a);
+    g.fillCircle(cx, cy - 22, 8);
+    // Cap
+    g.fillStyle(0x141414);
+    g.fillRect(cx - 9, cy - 30, 18, 5);
+    g.fillRect(cx + 2, cy - 28, 10, 3);
+    // Angry eyes
+    g.fillStyle(0xff3333);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
+
+  function drawBouncer(g, cx, cy) {
+    // Big trousers
+    g.fillStyle(0x0f0f0f);
+    g.fillRect(cx - 14, cy + 5, 28, 28);
+    // Big shoes
+    g.fillRect(cx - 16, cy + 30, 13, 6);
+    g.fillRect(cx + 3,  cy + 30, 13, 6);
+    // Suit jacket (wide)
+    g.fillStyle(0x1a1a1a);
+    g.fillRect(cx - 18, cy - 16, 36, 28);
+    // Lapel
+    g.fillStyle(0x2a2a2a);
+    g.fillRect(cx - 15, cy - 15, 6, 12);
+    g.fillRect(cx + 9,  cy - 15, 6, 12);
+    // Red bowtie
+    g.fillStyle(0xcc0000);
+    g.fillRect(cx - 5, cy - 12, 10, 3);
+    // Big head
+    g.fillStyle(0xd2a276);
+    g.fillCircle(cx, cy - 22, 10);
+    // Bald dome
+    g.fillStyle(0xba8a62);
+    g.fillRect(cx - 8, cy - 26, 16, 3);
+    // Shades
+    g.fillStyle(0x000000);
+    g.fillRect(cx - 9, cy - 22, 18, 4);
+    // Earpiece coil
+    g.fillStyle(0xffffff);
+    g.fillRect(cx + 9, cy - 18, 1, 3);
+  }
+
+  function drawHoodie(g, cx, cy) {
+    // Jeans
+    g.fillStyle(0x2a2a4a);
+    g.fillRect(cx - 9, cy + 5, 18, 28);
+    // Black shoes
+    g.fillStyle(0x0a0a0a);
+    g.fillRect(cx - 10, cy + 30, 9, 5);
+    g.fillRect(cx + 2,  cy + 30, 9, 5);
+    // Dark hoodie body
+    g.fillStyle(0x252525);
+    g.fillRect(cx - 12, cy - 14, 24, 26);
+    // Pocket line
+    g.fillStyle(0x1a1a1a);
+    g.fillRect(cx - 8, cy - 2, 16, 1);
+    // Hood
+    g.fillStyle(0x252525);
+    g.fillCircle(cx, cy - 22, 11);
+    // Face void (shadow)
+    g.fillStyle(0x050505);
+    g.fillCircle(cx, cy - 20, 7);
+    // Red glowing eyes
+    g.fillStyle(0xff2200);
+    g.fillRect(cx - 4, cy - 22, 2, 1);
+    g.fillRect(cx + 2, cy - 22, 2, 1);
+  }
+
+  const ENEMY_DRAWERS = { chav: drawChav, bouncer: drawBouncer, hoodie: drawHoodie };
+
+  // Enemy stat profiles
+  const ENEMY_STATS = {
+    chav:    { hp: 30,  speed: 110, damage: 10, touchDmg: 8,  scoreWeight: 1 },
+    bouncer: { hp: 100, speed: 60,  damage: 18, touchDmg: 20, scoreWeight: 3 },
+    hoodie:  { hp: 40,  speed: 180, damage: 12, touchDmg: 12, scoreWeight: 2 },
+  };
+
+  // =============================================================================
+  // UTILITY: generate a sprite texture from a draw function
+  // =============================================================================
+  function makeCharTexture(scene, key, drawFn, opt = {}) {
+    // 50x72 canvas, character centered at (25, 36), feet at ~y=72
+    const g = scene.make.graphics({ add: false });
+    drawFn(g, 25, 36, opt);
+    g.generateTexture(key, 50, 72);
+    g.destroy();
+  }
+
+  // =============================================================================
+  // SCENE: BOOT — not really needed but keeps structure clean
+  // =============================================================================
+  class BootScene extends Phaser.Scene {
+    constructor() { super({ key: 'Boot' }); }
+    create() { this.scene.start('CharacterSelect'); }
+  }
+
+  // =============================================================================
+  // SCENE: CHARACTER SELECT
+  // =============================================================================
+  class CharacterSelectScene extends Phaser.Scene {
+    constructor() { super({ key: 'CharacterSelect' }); }
+
+    create() {
+      this.cameras.main.setBackgroundColor('#050510');
+
+      // Dark gradient vignette background
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x0a0510, 0x0a0510, 0x1a0a0a, 0x1a0a0a, 1);
+      bg.fillRect(0, 0, GW, GH);
+
+      // Subtle brick texture hint — random dim rects
+      const brick = this.add.graphics();
+      brick.fillStyle(0x1a0e0e, 0.25);
+      for (let i = 0; i < 60; i++) {
+        const bx = Math.random() * GW;
+        const by = Math.random() * GH;
+        brick.fillRect(bx, by, 40, 14);
+      }
+
+      // Background rain
+      this.bgRain = [];
+      for (let i = 0; i < 120; i++) {
+        this.bgRain.push({
+          x: Math.random() * GW,
+          y: Math.random() * GH,
+          v: 380 + Math.random() * 260,
+        });
+      }
+      this.rainGfx = this.add.graphics();
+      this.rainGfx.setDepth(5);
+
+      this.drawTitle();
+      this.drawCards();
+      this.drawFooter();
     }
 
-    // ── far background buildings ──
-    const buildingsFar = [
-      {x:0,w:120,h:200,c:0x141420},{x:130,w:90,h:160,c:0x111118},{x:230,w:140,h:220,c:0x0f0f1a},
-      {x:380,w:100,h:180,c:0x131320},{x:490,w:160,h:240,c:0x0e0e19},{x:660,w:110,h:190,c:0x141422},
-      {x:780,w:130,h:210,c:0x0f0f1b},{x:920,w:90,h:170,c:0x111119},{x:1020,w:150,h:230,c:0x131321},
-      {x:1180,w:120,h:200,c:0x0e0e1a},{x:1310,w:100,h:185,c:0x141423},{x:1420,w:140,h:215,c:0x111118},
-      {x:1570,w:110,h:195,c:0x0f0f1c},{x:1690,w:130,h:220,c:0x131320},{x:1830,w:95,h:175,c:0x141421},
-      {x:1935,w:150,h:235,c:0x0e0e18},{x:2090,w:120,h:205,c:0x111119},{x:2220,w:140,h:225,c:0x0f0f1b},
-    ];
-    buildingsFar.forEach(b => {
-      g.fillStyle(b.c, 1);
-      g.fillRect(b.x, GROUND_Y - b.h, b.w, b.h);
-      // windows
-      g.fillStyle(0x1a1a30, 1);
-      for (let wx = b.x + 8; wx < b.x + b.w - 12; wx += 18) {
-        for (let wy = GROUND_Y - b.h + 10; wy < GROUND_Y - 20; wy += 22) {
-          if (Math.random() > 0.35) {
-            const lit = Math.random();
-            if (lit > 0.75) g.fillStyle(0x4a3820, 1);
-            else if (lit > 0.6) g.fillStyle(0x1a2a3a, 1);
-            else g.fillStyle(0x0a0a14, 1);
-            g.fillRect(wx, wy, 9, 12);
+    drawTitle() {
+      const t = 'PRCARNAGE';
+
+      // Red neon glow — layered texts with different stroke thicknesses
+      const glowLayers = [
+        { thick: 18, alpha: 0.18, color: '#550000' },
+        { thick: 12, alpha: 0.28, color: '#880000' },
+        { thick: 6,  alpha: 0.55, color: '#cc0000' },
+      ];
+      glowLayers.forEach(layer => {
+        this.add.text(GW / 2, 82, t, {
+          fontFamily: 'Impact, "Arial Black", sans-serif',
+          fontSize: '86px',
+          color: layer.color,
+          stroke: layer.color,
+          strokeThickness: layer.thick,
+        }).setOrigin(0.5).setAlpha(layer.alpha);
+      });
+
+      // Core text
+      const title = this.add.text(GW / 2, 82, t, {
+        fontFamily: 'Impact, "Arial Black", sans-serif',
+        fontSize: '86px',
+        color: '#ff3b3b',
+        stroke: '#2a0000',
+        strokeThickness: 3,
+      }).setOrigin(0.5);
+
+      // Soft pulse on title
+      this.tweens.add({
+        targets: title, alpha: { from: 0.85, to: 1 },
+        duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+
+      // Tagline
+      this.add.text(GW / 2, 142, 'MANCHESTER\'S FINEST  —  PICK YOUR LAD', {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#887070',
+        letterSpacing: 4,
+      }).setOrigin(0.5).setAlpha(0.85);
+    }
+
+    drawCards() {
+      // Grid: 3 columns x 2 rows
+      const cardW = 380, cardH = 260;
+      const gapX = 24, gapY = 24;
+      const gridW = cardW * 3 + gapX * 2;
+      const startX = (GW - gridW) / 2;
+      const startY = 180;
+
+      CHAR_ORDER.forEach((id, i) => {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const x = startX + col * (cardW + gapX);
+        const y = startY + row * (cardH + gapY);
+        this.drawCard(x, y, cardW, cardH, CHARACTERS[id]);
+      });
+    }
+
+    drawCard(x, y, w, h, char) {
+      const unlocked = char.unlocked;
+
+      // Card background
+      const bg = this.add.rectangle(x + w / 2, y + h / 2, w, h,
+        unlocked ? 0x1a0e0e : 0x0f0f0f).setStrokeStyle(
+        2, unlocked ? 0xcc3333 : 0x2a2a2a);
+
+      // Portrait panel
+      const portX = x + 20, portY = y + 20, portW = 110, portH = 180;
+      this.add.rectangle(portX + portW / 2, portY + portH / 2, portW, portH,
+        0x050505).setStrokeStyle(1, 0x2a2222);
+
+      // Draw the character, scaled up
+      const draw = CHARACTER_DRAWERS[char.id];
+      const holder = this.add.graphics().setPosition(portX + portW / 2, portY + portH / 2 + 24);
+      holder.setScale(1.6);
+      draw(holder, 0, 0);
+      if (!unlocked) holder.setAlpha(0.2);
+
+      // Name
+      const nameColor = unlocked ? '#ffecec' : '#555';
+      this.add.text(x + 150, y + 18, char.name, {
+        fontFamily: 'Impact', fontSize: '34px', color: nameColor,
+        stroke: unlocked ? '#440000' : '#000', strokeThickness: 2,
+      });
+
+      // Stats (bars)
+      const statLabels = [
+        { key: 'speed',  label: 'SPEED'  },
+        { key: 'hp',     label: 'HP'     },
+        { key: 'damage', label: 'DAMAGE' },
+      ];
+      const statX = x + 150;
+      const statY = y + 65;
+      statLabels.forEach((s, i) => {
+        const sy = statY + i * 28;
+        const val = char.stats[s.key];
+        this.add.text(statX, sy, s.label, {
+          fontFamily: 'monospace', fontSize: '12px',
+          color: unlocked ? '#b08f8f' : '#3a3a3a',
+          letterSpacing: 2,
+        });
+        // Bar background
+        this.add.rectangle(statX + 80, sy + 8, 150, 9, 0x0a0a0a)
+          .setOrigin(0, 0.5).setStrokeStyle(1, 0x2a2a2a);
+        // Fill
+        const fill = unlocked ? 0xff4444 : 0x333333;
+        this.add.rectangle(statX + 80, sy + 8, val * 15, 9, fill)
+          .setOrigin(0, 0.5);
+        // Notches
+        for (let n = 1; n < 10; n++) {
+          this.add.rectangle(statX + 80 + n * 15, sy + 8, 1, 9, 0x0a0a0a)
+            .setOrigin(0.5);
+        }
+      });
+
+      // Powerup
+      this.add.text(x + 150, y + 160, char.powerup, {
+        fontFamily: 'monospace', fontSize: '14px',
+        color: unlocked ? '#ffb733' : '#444',
+        fontStyle: 'bold',
+      });
+      this.add.text(x + 150, y + 180, char.powerupDesc, {
+        fontFamily: 'monospace', fontSize: '11px',
+        color: unlocked ? '#887070' : '#333',
+      });
+
+      // Action button
+      const btnY = y + h - 28;
+      const btnBg = this.add.rectangle(x + w / 2, btnY, w - 20, 40,
+        unlocked ? 0xaa0000 : 0x151515)
+        .setStrokeStyle(1, unlocked ? 0xff5555 : 0x333333);
+      const btnTxt = this.add.text(x + w / 2, btnY,
+        unlocked ? 'SELECT' : 'COMING SOON', {
+          fontFamily: 'Impact', fontSize: '22px',
+          color: unlocked ? '#ffffff' : '#555',
+          letterSpacing: 3,
+        }).setOrigin(0.5);
+
+      if (unlocked) {
+        btnBg.setInteractive({ useHandCursor: true });
+        btnBg.on('pointerover', () => {
+          btnBg.setFillStyle(0xff2222);
+          btnTxt.setColor('#ffff88');
+        });
+        btnBg.on('pointerout', () => {
+          btnBg.setFillStyle(0xaa0000);
+          btnTxt.setColor('#ffffff');
+        });
+        btnBg.on('pointerdown', () => {
+          this.cameras.main.flash(250, 255, 30, 30);
+          this.time.delayedCall(180, () => {
+            this.scene.start('Game', { character: char.id });
+          });
+        });
+      }
+    }
+
+    drawFooter() {
+      this.add.text(GW / 2, GH - 22,
+        'WASD MOVE  ·  SPACE JUMP (DOUBLE-TAP IN AIR TO DIVE)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  CLICK SHOOT  ·  E POWERUP  ·  F TONGUE',
+        { fontFamily: 'monospace', fontSize: '12px', color: '#665050', letterSpacing: 1 }
+      ).setOrigin(0.5);
+    }
+
+    update(time, delta) {
+      // Rain
+      const dt = delta / 1000;
+      const g = this.rainGfx;
+      g.clear();
+      g.lineStyle(1, 0x4a7aaa, 0.35);
+      for (const r of this.bgRain) {
+        r.y += r.v * dt;
+        if (r.y > GH + 10) {
+          r.y = -10;
+          r.x = Math.random() * GW;
+        }
+        g.lineBetween(r.x, r.y, r.x - 4, r.y + 14);
+      }
+    }
+  }
+
+  // =============================================================================
+  // SCENE: GAME
+  // =============================================================================
+  class GameScene extends Phaser.Scene {
+    constructor() { super({ key: 'Game' }); }
+
+    init(data) {
+      this.selectedCharacter = (data && data.character) || 'connor';
+    }
+
+    create() {
+      this.physics.world.setBounds(0, 0, WORLD_W, GH);
+      this.cameras.main.setBounds(0, 0, WORLD_W, GH);
+      this.cameras.main.setBackgroundColor('#05060a');
+
+      // Generate textures
+      this.makeAllTextures();
+
+      // Layers (in draw order)
+      this.createSkyAndFarBuildings();   // layer 1 far
+      this.createMidBuildings();         // layer 2
+      this.createNearWalls();            // layer 3 near
+      this.createNeonSigns();            // neon layer (near)
+      this.createGround();               // street surface
+      this.createPuddles();              // wet reflections
+      this.createPlatforms();
+
+      // Entities
+      this.createPlayer();
+      this.createEnemies();
+      this.createPowerupPickup();
+      this.createBullets();
+
+      // Particles / rain
+      this.createRainSystem();
+
+      // HUD and overlays
+      this.createHUD();
+      this.createBulletTimeOverlay();
+
+      // Input + physics collisions + camera
+      this.createInputs();
+      this.setupCollisions();
+      this.setupCamera();
+
+      // Game state
+      this.kills = 0;
+      this.bulletTimeEnergy = 100;
+      this.bulletTimeActive = false;
+      this.gameOver = false;
+      this.lastShotTime = 0;
+      this.powerupHeld = false;
+      this.powerupActive = false;
+      this.powerupTimer = 0;
+      this.powerupMax = 1;
+      this.powerupKind = null;
+
+      // Wave state — infinite waves; game ends only on death
+      this.wave = 1;
+      this.waveTransitioning = false;
+
+      // Intro flash
+      this.cameras.main.flash(400, 255, 255, 255);
+    }
+
+    // -----------------------------------------------------------------------
+    makeAllTextures() {
+      // Player textures — all 6 characters get a sprite
+      makeCharTexture(this, 'player_connor',          drawConnor,  {});
+      makeCharTexture(this, 'player_connor_gangster', drawConnor,  { gangster: true });
+      makeCharTexture(this, 'player_callum',          drawCallum);
+      makeCharTexture(this, 'player_finley',          drawFinley);
+      makeCharTexture(this, 'player_declan',          drawDeclan);
+      makeCharTexture(this, 'player_aaron',           drawAaron);
+      makeCharTexture(this, 'player_charlie',         drawCharlie);
+
+      // Enemies
+      makeCharTexture(this, 'enemy_chav',    drawChav);
+      makeCharTexture(this, 'enemy_bouncer', drawBouncer);
+      makeCharTexture(this, 'enemy_hoodie',  drawHoodie);
+
+      // Tongue projectile (frog mode) — pink horizontal blob
+      const tg = this.make.graphics({ add: false });
+      tg.fillStyle(0xff66cc, 1); tg.fillRect(0, 4, 24, 6);
+      tg.fillStyle(0xffaaee, 1); tg.fillRect(20, 2, 8, 10);
+      tg.generateTexture('tongue', 28, 14);
+      tg.destroy();
+
+      // Bullet texture — thin yellow rectangle with trail glow baked in
+      const b = this.make.graphics({ add: false });
+      b.fillStyle(0xffee77, 1);
+      b.fillRect(0, 3, 14, 2);
+      b.fillStyle(0xffaa22, 0.9);
+      b.fillRect(14, 2, 6, 4);
+      b.generateTexture('bullet', 20, 8);
+      b.destroy();
+
+      // Powerup orb
+      const p = this.make.graphics({ add: false });
+      p.fillStyle(0xffaa00, 0.3); p.fillCircle(16, 16, 16);
+      p.fillStyle(0xffcc33, 0.7); p.fillCircle(16, 16, 12);
+      p.fillStyle(0xffeeaa, 1);   p.fillCircle(16, 16, 6);
+      p.generateTexture('powerup_orb', 32, 32);
+      p.destroy();
+
+      // Platform (concrete slab)
+      const plat = this.make.graphics({ add: false });
+      plat.fillStyle(0x2a2a30, 1); plat.fillRect(0, 0, 200, 20);
+      plat.fillStyle(0x3a3a44, 1); plat.fillRect(0, 0, 200, 3);
+      plat.fillStyle(0x141418, 1); plat.fillRect(0, 18, 200, 2);
+      // rebar texture hint
+      for (let i = 8; i < 200; i += 18) {
+        plat.fillStyle(0x1a1a1e, 1);
+        plat.fillRect(i, 6, 2, 8);
+      }
+      plat.generateTexture('platform', 200, 20);
+      plat.destroy();
+
+      // Bullet trail particle (small yellow)
+      const t = this.make.graphics({ add: false });
+      t.fillStyle(0xffee55, 1); t.fillCircle(3, 3, 3);
+      t.generateTexture('spark', 6, 6);
+      t.destroy();
+
+      // Blood particle
+      const bl = this.make.graphics({ add: false });
+      bl.fillStyle(0xcc1122, 1); bl.fillCircle(3, 3, 3);
+      bl.generateTexture('blood', 6, 6);
+      bl.destroy();
+
+      // Rain splash — bright pale circle for a visible burst on impact
+      const rs = this.make.graphics({ add: false });
+      rs.fillStyle(0xffffff, 1);   rs.fillCircle(3, 3, 3);
+      rs.fillStyle(0xccddff, 0.6); rs.fillCircle(3, 3, 2);
+      rs.generateTexture('splash', 6, 6);
+      rs.destroy();
+    }
+
+    // -----------------------------------------------------------------------
+    createSkyAndFarBuildings() {
+      // Sky gradient — deep purple/black, hint of orange city glow
+      const sky = this.add.graphics().setScrollFactor(0);
+      sky.fillGradientStyle(0x080215, 0x080215, 0x200a10, 0x200a10, 1);
+      sky.fillRect(0, 0, GW, GH);
+
+      // Distant city silhouette — slowest parallax
+      const far = this.add.graphics().setScrollFactor(0.15);
+      let fx = -200;
+      const rngFar = mulberry32(1337);
+      while (fx < WORLD_W + 200) {
+        const bw = 70 + rngFar() * 120;
+        const bh = 130 + rngFar() * 220;
+        const by = 350 - bh + 300;
+        far.fillStyle(0x0a0a18, 1);
+        far.fillRect(fx, by, bw, bh);
+        // Windows (sparse dim yellow)
+        for (let wy = by + 20; wy < by + bh - 15; wy += 22) {
+          for (let wx = fx + 10; wx < fx + bw - 10; wx += 16) {
+            if (rngFar() > 0.7) {
+              far.fillStyle(rngFar() > 0.5 ? 0x443310 : 0x1a1a30, 1);
+              far.fillRect(wx, wy, 6, 8);
+            }
           }
         }
-      }
-    });
-
-    // ── brick walls (mid ground) ──
-    const brickColor = 0x2a1a14;
-    const mortarColor = 0x1a1010;
-    // draw long brick wall across bottom
-    for (let bx = 0; bx < ww; bx += 24) {
-      for (let by = GROUND_Y - 120; by < GROUND_Y; by += 14) {
-        const offset = (Math.floor(by / 14) % 2) * 12;
-        g.fillStyle(brickColor, 1);
-        g.fillRect(bx + offset, by, 22, 12);
-        g.fillStyle(mortarColor, 1);
-        g.fillRect(bx + offset + 22, by, 2, 12);
-        g.fillRect(bx + offset, by + 12, 24, 2);
+        fx += bw + 10 + rngFar() * 20;
       }
     }
 
-    // ── neon signs ──
-    const neons = [
-      { x: 160, y: GROUND_Y - 145, text: 'BAR', col: 0xff2244, glow: 0xff0033 },
-      { x: 420, y: GROUND_Y - 155, text: 'CHIPPY', col: 0xffaa00, glow: 0xff8800 },
-      { x: 780, y: GROUND_Y - 140, text: 'NITE CLUB', col: 0xcc00ff, glow: 0x9900cc },
-      { x: 1100, y: GROUND_Y - 150, text: 'OFFIE', col: 0x00ffcc, glow: 0x00cc99 },
-      { x: 1450, y: GROUND_Y - 148, text: 'KEBAB', col: 0xff5500, glow: 0xcc3300 },
-      { x: 1800, y: GROUND_Y - 145, text: 'CASINO', col: 0xffee00, glow: 0xccaa00 },
-      { x: 2100, y: GROUND_Y - 155, text: 'WETHERSPOONS', col: 0x0088ff, glow: 0x0055cc },
-    ];
-    neons.forEach(n => {
-      // glow box
-      g.fillStyle(n.glow, 0.08);
-      g.fillRect(n.x - 4, n.y - 4, n.text.length * 11 + 16, 26);
-      g.lineStyle(1.5, n.col, 0.8);
-      g.strokeRect(n.x - 4, n.y - 4, n.text.length * 11 + 16, 26);
-    });
-    // add text for neons
-    neons.forEach(n => {
-      this.add.text(n.x + 4, n.y + 4, n.text, {
-        fontSize: '11px', fontFamily: 'Courier New',
-        color: '#' + n.col.toString(16).padStart(6, '0'),
-        stroke: '#' + n.glow.toString(16).padStart(6, '0'),
-        strokeThickness: 3,
-      }).setDepth(2);
-    });
-
-    // ── wet ground (reflective) ──
-    g.fillStyle(0x080810, 1);
-    g.fillRect(0, GROUND_Y, ww, H - GROUND_Y);
-
-    // puddle reflections
-    const puddles = [80,200,380,550,700,900,1050,1200,1380,1500,1700,1850,2050,2200];
-    puddles.forEach(px => {
-      g.fillStyle(0x0d1020, 1);
-      g.fillEllipse(px + Math.random()*40, GROUND_Y + 6, 60 + Math.random()*40, 8);
-    });
-
-    // ground line
-    g.lineStyle(2, 0x1a1a30, 1);
-    g.lineBetween(0, GROUND_Y, ww, GROUND_Y);
-
-    // ── platforms ──
-    this.platforms = [];
-    const platDefs = [
-      {x:200,y:GROUND_Y-90,w:120},{x:450,y:GROUND_Y-110,w:100},
-      {x:680,y:GROUND_Y-80,w:130},{x:900,y:GROUND_Y-100,w:110},
-      {x:1100,y:GROUND_Y-120,w:140},{x:1320,y:GROUND_Y-90,w:120},
-      {x:1550,y:GROUND_Y-105,w:130},{x:1780,y:GROUND_Y-95,w:110},
-      {x:2000,y:GROUND_Y-115,w:140},{x:2200,y:GROUND_Y-85,w:120},
-    ];
-    platDefs.forEach(p => {
-      g.fillStyle(0x1e1218, 1);
-      g.fillRect(p.x, p.y, p.w, 14);
-      g.fillStyle(0x2a1a1a, 1);
-      g.fillRect(p.x, p.y, p.w, 4);
-      // brick texture on platform
-      for (let bx = p.x; bx < p.x + p.w; bx += 20) {
-        g.fillStyle(0x221416, 1);
-        g.fillRect(bx, p.y + 4, 18, 9);
+    createMidBuildings() {
+      // Mid layer — brick shops with neon signage slots. Scrolls ~0.45.
+      const mid = this.add.graphics().setScrollFactor(0.45);
+      let mx = -200;
+      const rng = mulberry32(4242);
+      while (mx < WORLD_W + 200) {
+        const bw = 140 + rng() * 140;
+        const bh = 240 + rng() * 120;
+        const by = GROUND_Y - bh;
+        // Brick color variants
+        const brickCol = [0x2a1818, 0x331a14, 0x261212][Math.floor(rng() * 3)];
+        mid.fillStyle(brickCol, 1);
+        mid.fillRect(mx, by, bw, bh);
+        // Brick joints
+        mid.fillStyle(0x1a0c0c, 1);
+        for (let by2 = by; by2 < by + bh; by2 += 10) {
+          mid.fillRect(mx, by2, bw, 1);
+        }
+        for (let bx2 = mx; bx2 < mx + bw; bx2 += 24) {
+          mid.fillRect(bx2, by, 1, bh);
+        }
+        // Windows — lit rooms
+        for (let wy = by + 40; wy < by + bh - 60; wy += 50) {
+          for (let wx = mx + 20; wx < mx + bw - 30; wx += 44) {
+            if (rng() > 0.4) {
+              const lit = rng() > 0.5;
+              mid.fillStyle(lit ? 0x776622 : 0x1a1a10, 1);
+              mid.fillRect(wx, wy, 20, 26);
+              // window cross
+              mid.fillStyle(0x050505, 1);
+              mid.fillRect(wx + 9, wy, 2, 26);
+              mid.fillRect(wx, wy + 12, 20, 2);
+            }
+          }
+        }
+        // Ground floor (shopfront) darker
+        mid.fillStyle(0x151010, 1);
+        mid.fillRect(mx, by + bh - 60, bw, 60);
+        // Shopfront door
+        mid.fillStyle(0x0a0a0a, 1);
+        mid.fillRect(mx + bw / 2 - 12, by + bh - 56, 24, 56);
+        mx += bw + 6 + rng() * 20;
       }
-      // store as physics zone
-      this.platforms.push({ x: p.x, y: p.y, w: p.w, h: 14 });
-    });
+    }
 
-    // ground is also a platform
-    this.platforms.push({ x: 0, y: GROUND_Y, w: ww, h: H - GROUND_Y });
+    createNearWalls() {
+      // Foreground walls/trash — closest parallax (0.8)
+      // These live below GROUND_Y and create the street floor edge
+      const near = this.add.graphics().setScrollFactor(0.8);
 
-    g.setDepth(0);
-  }
+      // Back wall strip behind the ground
+      near.fillStyle(0x0f0a0a, 1);
+      near.fillRect(0, GROUND_Y - 80, WORLD_W, 80);
 
-  // ─── PLAYER ──────────────────────────────────────────────────────────────
-  _buildPlayer() {
-    this.player = {
-      x: 100, y: GROUND_Y - PLAYER_H,
-      vx: 0, vy: 0,
-      w: PLAYER_W, h: PLAYER_H,
-      onGround: false,
-      sliding: false,
-      slideDir: 1,
-      diving: false,
-      facing: 1,
-      hp: 100,
-      invincible: 0,
-      flashTimer: 0,
-    };
-    // graphics object
-    this.playerGfx = this.add.graphics().setDepth(10);
-    this.playerLabel = this.add.text(0, 0, 'Connor', {
-      fontSize: '9px', fontFamily: 'Courier New',
-      color: '#ffffff', stroke: '#000', strokeThickness: 2,
-    }).setDepth(11).setOrigin(0.5, 1);
+      const rng = mulberry32(9090);
+      // Scattered foreground details — bins, posters
+      for (let i = 0; i < 40; i++) {
+        const x = rng() * WORLD_W;
+        const w = 26 + rng() * 20;
+        const h = 32 + rng() * 20;
+        near.fillStyle(0x181818, 1);
+        near.fillRect(x, GROUND_Y - h, w, h);
+        // Lid
+        near.fillStyle(0x2a2a2a, 1);
+        near.fillRect(x - 2, GROUND_Y - h - 3, w + 4, 3);
+        // Graffiti dot
+        if (rng() > 0.5) {
+          near.fillStyle([0xff3377, 0x33ff88, 0x33aaff][Math.floor(rng() * 3)], 0.35);
+          near.fillRect(x + 4, GROUND_Y - h / 2, 8, 8);
+        }
+      }
+    }
 
-    // muzzle flash
-    this.muzzleGfx = this.add.graphics().setDepth(12);
-    this.muzzleTimer = 0;
-  }
+    createNeonSigns() {
+      // Neon signs — drawn at full scroll factor (1.0, same as world)
+      // Each sign: glow aura + outlined rectangle + text
+      this.neonLightPools = [];
 
-  // ─── ENEMIES ─────────────────────────────────────────────────────────────
-  _buildEnemies() {
-    const positions = [
-      { x: 600, patrol: [480, 740] },
-      { x: 1200, patrol: [1050, 1380] },
-      { x: 1900, patrol: [1750, 2100] },
-    ];
-    positions.forEach((ep, i) => {
-      this.enemies.push({
-        x: ep.x, y: GROUND_Y - 40,
-        w: 22, h: 40,
-        vx: ENEMY_SPEED, vy: 0,
-        patrolMin: ep.patrol[0], patrolMax: ep.patrol[1],
-        alive: true,
-        hp: 2,
+      NEON_SIGNS.forEach(sign => {
+        const col = sign.color;
+        // Sign box
+        const w = sign.text.length * 14 + 20;
+        const h = 40;
+        const boxX = sign.x, boxY = sign.y;
+
+        // Glow halo behind
+        const halo = this.add.graphics();
+        halo.fillStyle(col, 0.18);
+        halo.fillCircle(boxX, boxY + h / 2, 80);
+        halo.fillStyle(col, 0.08);
+        halo.fillCircle(boxX, boxY + h / 2, 130);
+
+        // Sign frame
+        const frame = this.add.graphics();
+        frame.fillStyle(0x0a0a0a, 1);
+        frame.fillRect(boxX - w / 2, boxY, w, h);
+        frame.lineStyle(2, col, 1);
+        frame.strokeRect(boxX - w / 2, boxY, w, h);
+
+        // Text (with glow)
+        const txtGlow = this.add.text(boxX, boxY + h / 2, sign.text, {
+          fontFamily: 'Impact', fontSize: '22px',
+          color: '#' + col.toString(16).padStart(6, '0'),
+          stroke: '#' + col.toString(16).padStart(6, '0'),
+          strokeThickness: 8,
+        }).setOrigin(0.5).setAlpha(0.35);
+
+        const txt = this.add.text(boxX, boxY + h / 2, sign.text, {
+          fontFamily: 'Impact', fontSize: '22px',
+          color: '#ffffff',
+        }).setOrigin(0.5);
+
+        // Subtle flicker
+        this.tweens.add({
+          targets: [txt, txtGlow, frame, halo],
+          alpha: { from: 1, to: 0.85 },
+          duration: 90 + Math.random() * 100,
+          yoyo: true, repeat: -1,
+        });
+
+        // Light pool on the ground beneath the sign
+        const pool = this.add.graphics();
+        pool.fillStyle(col, 0.35);
+        pool.fillEllipse(boxX, GROUND_Y - 2, 220, 30);
+        pool.fillStyle(col, 0.15);
+        pool.fillEllipse(boxX, GROUND_Y - 2, 300, 45);
+        pool.setDepth(-1); // under platforms / enemies
+        this.neonLightPools.push({ g: pool, baseX: boxX, color: col });
+      });
+    }
+
+    createGround() {
+      // Wet street — dark base with subtle reflective highlights
+      const gnd = this.add.graphics();
+      // Street body
+      gnd.fillStyle(0x0e0e14, 1);
+      gnd.fillRect(0, GROUND_Y, WORLD_W, GH - GROUND_Y);
+      // Top highlight line — curb
+      gnd.fillStyle(0x2a2a34, 1);
+      gnd.fillRect(0, GROUND_Y, WORLD_W, 2);
+      // Wet sheen — thin semi-transparent highlight bands
+      gnd.fillStyle(0x4a6a8a, 0.06);
+      gnd.fillRect(0, GROUND_Y + 4, WORLD_W, 14);
+      gnd.fillStyle(0x6a8abf, 0.04);
+      gnd.fillRect(0, GROUND_Y + 16, WORLD_W, 20);
+
+      // Soft elliptical light pools on the wet street under each neon sign
+      NEON_SIGNS.forEach(s => {
+        const pool = this.add.graphics();
+        pool.fillStyle(s.color, 0.28);
+        pool.fillEllipse(s.x, GROUND_Y + 6, 200, 22);
+        pool.fillStyle(s.color, 0.16);
+        pool.fillEllipse(s.x, GROUND_Y + 10, 300, 38);
+        pool.fillStyle(s.color, 0.08);
+        pool.fillEllipse(s.x, GROUND_Y + 14, 420, 56);
+      });
+
+      // Physical ground body (invisible collider)
+      this.groundBody = this.physics.add.staticGroup();
+      const floor = this.add.rectangle(WORLD_W / 2, GROUND_Y + 50, WORLD_W, 100, 0x000000, 0);
+      this.physics.add.existing(floor, true);
+      this.groundBody.add(floor);
+    }
+
+    createPuddles() {
+      // A few wet puddles on the ground with subtle ripples
+      this.puddles = [];
+      const puddleXs = [220, 640, 1080, 1480, 1840, 2180, 2520, 2820];
+      puddleXs.forEach(x => {
+        const g = this.add.graphics();
+        g.fillStyle(0x223344, 0.45);
+        g.fillEllipse(x, GROUND_Y + 6, 120, 14);
+        g.fillStyle(0x445577, 0.35);
+        g.fillEllipse(x, GROUND_Y + 6, 80, 8);
+        // Ripple markers updated each frame
+        this.puddles.push({ x, g, phase: Math.random() * Math.PI * 2 });
+      });
+    }
+
+    createPlatforms() {
+      this.platforms = this.physics.add.staticGroup();
+      PLATFORM_DATA.forEach(p => {
+        // Use a tileSprite so any width works
+        const plat = this.add.tileSprite(p.x, p.y, p.w, 20, 'platform')
+          .setOrigin(0.5);
+        this.physics.add.existing(plat, true);
+        this.platforms.add(plat);
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    createPlayer() {
+      const charId = this.selectedCharacter;
+      const stats = CHARACTERS[charId].stats;
+      // Each character has its own player texture now (v3)
+      this.player = this.physics.add.sprite(120, GROUND_Y - 40, 'player_' + charId);
+      this.player.setCollideWorldBounds(true);
+      this.player.body.setSize(28, 56);
+      this.player.body.setOffset(11, 12);
+
+      // Player runtime state
+      this.playerState = {
+        id: charId,
+        hp: statToHP(stats.hp),
+        maxHp: statToHP(stats.hp),
+        baseSpeed: statToSpeed(stats.speed),
+        damage: statToDamage(stats.damage),
         facing: 1,
-        onGround: true,
-        // ragdoll state
-        ragdoll: false,
-        ragdollTimer: 0,
-        ragdollAngle: 0,
-        ragdollAngularV: 0,
-        flashTimer: 0,
-        shootTimer: 1.5 + i * 0.8,
-        gfx: this.add.graphics().setDepth(9),
-        label: this.add.text(ep.x, GROUND_Y - 45, 'ENEMY', {
-          fontSize: '8px', fontFamily: 'Courier New', color: '#ff4444',
-          stroke: '#000', strokeThickness: 2,
-        }).setDepth(10).setOrigin(0.5, 1),
-      });
-    });
-  }
+        lastGroundedAt: 0,
+        lastJumpPressedAt: -99999,
+        hasUsedDive: false,
+        isSliding: false,
+        slideEndsAt: 0,
+        isCrouching: false,
+        invincibleUntil: 0,
+      };
+    }
 
-  // ─── RAIN ────────────────────────────────────────────────────────────────
-  _buildRain() {
-    this.rainGfx = this.add.graphics().setDepth(20).setScrollFactor(0);
-    for (let i = 0; i < 120; i++) {
-      this.rainDrops.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        speed: 280 + Math.random() * 160,
-        len: 8 + Math.random() * 12,
+    createEnemies() {
+      this.enemies = this.physics.add.group();
+      this.enemyData = new Map(); // sprite -> state
+      // Wave 1 uses the hand-placed ENEMY_SPAWNS list (6 enemies)
+      ENEMY_SPAWNS.forEach(spawn => this.spawnEnemy(spawn.x, spawn.type));
+    }
+
+    // Spawn a single enemy at x of the given type, register its state
+    spawnEnemy(x, type) {
+      const stats = ENEMY_STATS[type];
+      const tex = 'enemy_' + type;
+      const e = this.enemies.create(x, GROUND_Y - 40, tex);
+      e.setCollideWorldBounds(true);
+      e.body.setSize(28, 56);
+      e.body.setOffset(11, 12);
+      if (type === 'bouncer') {
+        e.setScale(1.2);
+        e.body.setSize(32, 64); e.body.setOffset(12, 12);
+      }
+      this.enemyData.set(e, {
+        type,
+        hp: stats.hp, maxHp: stats.hp,
+        speed: stats.speed, damage: stats.damage, touchDmg: stats.touchDmg,
+        patrolOrigin: x,
+        patrolDir: Math.random() > 0.5 ? 1 : -1,
+        lastShotAt: 0,
+        alive: true,
+        ragdollVx: 0, ragdollVy: 0, ragdollRot: 0,
+        chargeUntil: 0,
+        nextActionAt: 0,
+      });
+      return e;
+    }
+
+    // Waves 2+ — 8 enemies, random mix, spread across the level
+    spawnWave(n) {
+      const types = ['chav', 'hoodie', 'bouncer'];
+      const baseXs = [350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
+      for (let i = 0; i < 8; i++) {
+        const type = types[Math.floor(Math.random() * types.length)];
+        const jitter = (Math.random() - 0.5) * 100;
+        this.spawnEnemy(baseXs[i] + jitter, type);
+      }
+    }
+
+    createPowerupPickup() {
+      // Random spawn mid-level; respawns periodically
+      this.powerupOrb = this.physics.add.sprite(1500, GROUND_Y - 40, 'powerup_orb');
+      this.powerupOrb.setCollideWorldBounds(true);
+      this.powerupOrb.body.setAllowGravity(false);
+      this.powerupOrb.setDepth(10);
+      // Hovering tween
+      this.tweens.add({
+        targets: this.powerupOrb,
+        y: GROUND_Y - 60,
+        duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+      // Pulse glow
+      this.tweens.add({
+        targets: this.powerupOrb,
+        alpha: { from: 0.75, to: 1 },
+        duration: 500, yoyo: true, repeat: -1,
       });
     }
-  }
 
-  // ─── INPUT ───────────────────────────────────────────────────────────────
-  _setupInput() {
-    this.keys = this.input.keyboard.addKeys({
-      left: Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-      jump: Phaser.Input.Keyboard.KeyCodes.W,
-      space: Phaser.Input.Keyboard.KeyCodes.SPACE,
-      slide: Phaser.Input.Keyboard.KeyCodes.S,
-      shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
-      restart: Phaser.Input.Keyboard.KeyCodes.R,
-    });
-
-    this.input.on('pointerdown', (ptr) => {
-      if (!gameStarted) { this._startGame(); return; }
-      if (gameOver || gameWon) { this._restartGame(); return; }
-      if (!this.isDead) this._shoot(ptr);
-    });
-
-    this.input.keyboard.on('keydown', (e) => {
-      if (!gameStarted) { this._startGame(); return; }
-      if ((gameOver || gameWon) && e.keyCode === Phaser.Input.Keyboard.KeyCodes.R) {
-        this._restartGame(); return;
-      }
-      if (this.isDead) return;
-      if (e.keyCode === Phaser.Input.Keyboard.KeyCodes.W ||
-          e.keyCode === Phaser.Input.Keyboard.KeyCodes.SPACE) {
-        this._tryJump();
-      }
-    });
-  }
-
-  _startGame() {
-    document.getElementById('title-screen').style.display = 'none';
-    gameStarted = true;
-  }
-
-  _restartGame() {
-    document.getElementById('death-screen').style.display = 'none';
-    document.getElementById('win-screen').style.display = 'none';
-    gameOver = false; gameWon = false;
-    this.scene.restart();
-  }
-
-  // ─── CAMERA ──────────────────────────────────────────────────────────────
-  _setupCamera() {
-    this.cameras.main.setBounds(0, 0, this.worldWidth, H);
-    this.cameras.main.startFollow({ x: this.player.x, y: this.player.y }, false, 0.1, 0.1);
-    this._camTarget = { x: this.player.x, y: this.player.y };
-  }
-
-  // ─── SHOOTING ────────────────────────────────────────────────────────────
-  _shoot(ptr) {
-    const now = this.time.now;
-    if (now - this.lastShot < 220) return;
-    this.lastShot = now;
-
-    const wx = ptr.worldX;
-    const wy = ptr.worldY;
-    const px = this.player.x;
-    const py = this.player.y - this.player.h / 2;
-    const angle = Math.atan2(wy - py, wx - px);
-
-    this.bullets.push({
-      x: px, y: py,
-      vx: Math.cos(angle) * BULLET_SPEED,
-      vy: Math.sin(angle) * BULLET_SPEED,
-      trail: [],
-      fromPlayer: true,
-      gfx: this.add.graphics().setDepth(15),
-    });
-
-    this.muzzleTimer = 0.06;
-    // camera shake
-    this.cameras.main.shake(60, 0.004);
-  }
-
-  _enemyShoot(enemy) {
-    const angle = Math.atan2(
-      (this.player.y - this.player.h / 2) - (enemy.y - enemy.h / 2),
-      this.player.x - enemy.x
-    );
-    this.bullets.push({
-      x: enemy.x, y: enemy.y - enemy.h / 2,
-      vx: Math.cos(angle) * 320,
-      vy: Math.sin(angle) * 320,
-      trail: [],
-      fromPlayer: false,
-      gfx: this.add.graphics().setDepth(15),
-    });
-  }
-
-  // ─── JUMP ────────────────────────────────────────────────────────────────
-  _tryJump() {
-    const p = this.player;
-    if (p.onGround) {
-      p.vy = JUMP_VEL;
-      p.onGround = false;
-      p.sliding = false;
-    } else if (!p.diving && !this.diveUsed) {
-      // mid-air dive
-      const dir = this.keys.left.isDown ? -1 : this.keys.right.isDown ? 1 : p.facing;
-      p.vx = dir * DIVE_VEL;
-      p.vy = -180;
-      p.diving = true;
-      this.diveUsed = true;
+    createBullets() {
+      this.bullets = this.physics.add.group({ allowGravity: true });
+      this.enemyBullets = this.physics.add.group({ allowGravity: true });
     }
-  }
 
-  // ─── PHYSICS ─────────────────────────────────────────────────────────────
-  _resolveEntityPlatforms(e) {
-    e.onGround = false;
-    const foot = e.y;
-    const prevFoot = foot - e.vy * (1 / 60);
-    for (const plat of this.platforms) {
-      if (e.x + e.w / 2 > plat.x && e.x - e.w / 2 < plat.x + plat.w) {
-        if (foot >= plat.y && prevFoot <= plat.y + 4 && e.vy >= 0) {
-          e.y = plat.y;
-          e.vy = 0;
-          e.onGround = true;
+    // -----------------------------------------------------------------------
+    createRainSystem() {
+      // Custom rain — 220 drops, wraps around the camera viewport.
+      // Splashes on ground are particle-driven.
+      this.rain = [];
+      for (let i = 0; i < 220; i++) {
+        this.rain.push({
+          x: Math.random() * GW,
+          y: Math.random() * GH,
+          v: 720 + Math.random() * 360,
+          len: 10 + Math.random() * 10,
+        });
+      }
+      this.rainGfx = this.add.graphics().setScrollFactor(0).setDepth(30);
+
+      // Particle manager for splashes (rain) and blood
+      this.splashFX = this.add.particles(0, 0, 'splash', {
+        speed: { min: 80, max: 180 },
+        angle: { min: 240, max: 300 },
+        scale: { start: 0.8, end: 0 },
+        alpha: { start: 0.9, end: 0 },
+        lifespan: 350,
+        gravityY: 400,
+        emitting: false,
+      }).setDepth(20);
+
+      this.bloodFX = this.add.particles(0, 0, 'blood', {
+        speed: { min: 160, max: 360 },
+        angle: { min: 200, max: 340 },
+        scale: { start: 1.2, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 550,
+        gravityY: 900,
+        emitting: false,
+      }).setDepth(20);
+
+      this.sparkFX = this.add.particles(0, 0, 'spark', {
+        speed: { min: 40, max: 160 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 200,
+        emitting: false,
+      }).setDepth(25);
+    }
+
+    // -----------------------------------------------------------------------
+    createHUD() {
+      // HUD is fixed to camera (scrollFactor 0)
+      this.hud = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
+
+      // Character name top-left
+      this.hudName = this.add.text(16, 12,
+        CHARACTERS[this.selectedCharacter].name, {
+          fontFamily: 'Impact', fontSize: '28px',
+          color: '#ffffff', stroke: '#550000', strokeThickness: 3,
+        });
+      this.hud.add(this.hudName);
+
+      // HP bar label + bar
+      this.hudHpLabel = this.add.text(16, 48, 'HP', {
+        fontFamily: 'monospace', fontSize: '13px',
+        color: '#ff6666', letterSpacing: 2,
+      });
+      this.hud.add(this.hudHpLabel);
+
+      this.hudHpBg = this.add.rectangle(48, 56, 220, 14, 0x1a0505)
+        .setOrigin(0, 0.5).setStrokeStyle(1, 0x661111);
+      this.hudHpFill = this.add.rectangle(48, 56, 220, 14, 0xcc2222)
+        .setOrigin(0, 0.5);
+      this.hud.add(this.hudHpBg); this.hud.add(this.hudHpFill);
+
+      // Bullet time meter label + bar
+      this.hudBtLabel = this.add.text(16, 78, 'BULLET TIME', {
+        fontFamily: 'monospace', fontSize: '12px',
+        color: '#22aadd', letterSpacing: 2,
+      });
+      this.hud.add(this.hudBtLabel);
+
+      this.hudBtBg = this.add.rectangle(120, 86, 180, 10, 0x05111a)
+        .setOrigin(0, 0.5).setStrokeStyle(1, 0x114466);
+      this.hudBtFill = this.add.rectangle(120, 86, 180, 10, 0x33ccff)
+        .setOrigin(0, 0.5);
+      this.hud.add(this.hudBtBg); this.hud.add(this.hudBtFill);
+
+      // Kills (top right)
+      this.hudKills = this.add.text(GW - 16, 12, 'KILLS: 0', {
+        fontFamily: 'Impact', fontSize: '26px',
+        color: '#ffaa22', stroke: '#441100', strokeThickness: 3,
+      }).setOrigin(1, 0);
+      this.hud.add(this.hudKills);
+
+      // Wave indicator — sits below kills
+      this.hudWave = this.add.text(GW - 16, 46, 'WAVE 1', {
+        fontFamily: 'Impact', fontSize: '22px',
+        color: '#33ccff', stroke: '#001a33', strokeThickness: 2,
+        letterSpacing: 2,
+      }).setOrigin(1, 0);
+      this.hud.add(this.hudWave);
+
+      // Powerup indicator
+      this.hudPowerupLabel = this.add.text(GW - 16, 80, 'POWERUP: NONE', {
+        fontFamily: 'monospace', fontSize: '12px',
+        color: '#666666', letterSpacing: 1,
+      }).setOrigin(1, 0);
+      this.hud.add(this.hudPowerupLabel);
+
+      this.hudPowerupBarBg = this.add.rectangle(GW - 16, 104, 180, 8, 0x1a1005)
+        .setOrigin(1, 0.5).setStrokeStyle(1, 0x664411).setVisible(false);
+      this.hudPowerupBarFill = this.add.rectangle(GW - 16, 104, 180, 8, 0xffaa22)
+        .setOrigin(1, 0.5).setVisible(false);
+      this.hud.add(this.hudPowerupBarBg); this.hud.add(this.hudPowerupBarFill);
+
+      // Controls hint (bottom right)
+      this.hud.add(this.add.text(GW - 12, GH - 10,
+        'WASD · SPACE · S+DIR SLIDE · SHIFT BULLET TIME · CLICK SHOOT · E POWERUP · F TONGUE',
+        { fontFamily: 'monospace', fontSize: '10px', color: '#554444' }
+      ).setOrigin(1, 1));
+    }
+
+    // -----------------------------------------------------------------------
+    createBulletTimeOverlay() {
+      // Desaturation overlay — pulls colour out of everything below it
+      this.desatOverlay = this.add.rectangle(0, 0, GW, GH, 0x888888)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(100)
+        .setBlendMode(Phaser.BlendModes.SATURATION).setAlpha(0);
+
+      // Blue tint overlay
+      this.blueOverlay = this.add.rectangle(0, 0, GW, GH, 0x1a3a88)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(101).setAlpha(0);
+
+      // Vignette — a big radial-ish graphics shape
+      this.vignette = this.add.graphics().setScrollFactor(0).setDepth(102);
+      this.vignette.setAlpha(0);
+      // Draw vignette into it once
+      this.redrawVignette(this.vignette);
+    }
+
+    redrawVignette(g) {
+      g.clear();
+      // Dark corners — simulate radial gradient with stacked transparent rings
+      const cx = GW / 2, cy = GH / 2;
+      for (let i = 0; i < 40; i++) {
+        const t = i / 40;
+        const r = 160 + t * 700;
+        const a = 0.035 + t * 0.04;
+        g.lineStyle(24, 0x000014, a);
+        g.strokeEllipse(cx, cy, r * 1.6, r);
+      }
+      // Darker screen edge
+      g.fillStyle(0x000010, 0.55);
+      g.fillRect(0, 0, GW, 40);
+      g.fillRect(0, GH - 40, GW, 40);
+      g.fillRect(0, 0, 40, GH);
+      g.fillRect(GW - 40, 0, 40, GH);
+    }
+
+    // -----------------------------------------------------------------------
+    createInputs() {
+      this.keys = this.input.keyboard.addKeys({
+        left: Phaser.Input.Keyboard.KeyCodes.A,
+        right: Phaser.Input.Keyboard.KeyCodes.D,
+        up: Phaser.Input.Keyboard.KeyCodes.W,
+        down: Phaser.Input.Keyboard.KeyCodes.S,
+        jump: Phaser.Input.Keyboard.KeyCodes.SPACE,
+        bulletTime: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+        powerup: Phaser.Input.Keyboard.KeyCodes.E,
+        tongue: Phaser.Input.Keyboard.KeyCodes.F, // Frog mode tongue
+      });
+
+      // Click to shoot
+      this.input.on('pointerdown', pointer => {
+        if (this.gameOver) return;
+        this.shoot(pointer);
+      });
+
+      // Track whether jump was pressed this frame (for dive)
+      this.jumpWasDown = false;
+
+      // Track S/E/F pressed this frame for edge detection
+      this.sWasDown = false;
+      this.eWasDown = false;
+      this.fWasDown = false;
+    }
+
+    setupCollisions() {
+      // Player vs ground/platforms
+      this.physics.add.collider(this.player, this.groundBody);
+      this.physics.add.collider(this.player, this.platforms);
+
+      // Enemies vs ground/platforms
+      this.physics.add.collider(this.enemies, this.groundBody);
+      this.physics.add.collider(this.enemies, this.platforms);
+
+      // Bullets vs ground/platforms (destroy on hit)
+      const hitSolid = (b) => {
+        this.sparkFX.emitParticleAt(b.x, b.y, 5);
+        b.destroy();
+      };
+      this.physics.add.collider(this.bullets, this.groundBody, hitSolid);
+      this.physics.add.collider(this.bullets, this.platforms, hitSolid);
+      this.physics.add.collider(this.enemyBullets, this.groundBody, hitSolid);
+      this.physics.add.collider(this.enemyBullets, this.platforms, hitSolid);
+
+      // Bullet vs enemy — bullet carries its own damage (tongue = 9999, normal = playerDmg)
+      this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
+        const data = this.enemyData.get(enemy);
+        if (!data || !data.alive) return;
+        const dmg = (bullet.damage != null) ? bullet.damage : this.playerState.damage;
+        this.damageEnemy(enemy, dmg, bullet.x, bullet.y);
+        // Tongue keeps going through? No — destroy on hit for clean feedback.
+        bullet.destroy();
+      });
+
+      // Enemy bullet vs player
+      this.physics.add.overlap(this.enemyBullets, this.player, (player, bullet) => {
+        if (this.gameOver) return;
+        if (this.playerState.invincibleUntil > this.time.now) return;
+        this.damagePlayer(10);
+        this.bloodFX.emitParticleAt(bullet.x, bullet.y, 6);
+        bullet.destroy();
+      });
+
+      // Enemy touch — varies by active powerup
+      this.physics.add.overlap(this.player, this.enemies, (player, enemy) => {
+        if (this.gameOver) return;
+        const data = this.enemyData.get(enemy);
+        if (!data || !data.alive) return;
+
+        // Aaron Goblin — contact kills any enemy + MINE! popup
+        if (this.powerupActive && this.powerupKind === 'aaron') {
+          const dir = Math.sign(enemy.x - player.x) || 1;
+          this.killEnemy(enemy, dir);
+          this.showFloatingText(enemy.x, enemy.y - 30, 'MINE!', '#88ff44');
+          return;
+        }
+
+        // Charlie Fatter — enemy knocked back hard and killed; player is unharmed
+        if (this.powerupActive && this.powerupKind === 'charlie') {
+          const dir = Math.sign(enemy.x - player.x) || 1;
+          this.killEnemy(enemy, dir);
+          // Boost the ragdoll launch for a satisfying punt
+          const d = this.enemyData.get(enemy);
+          if (d) {
+            d.ragdollVx = dir * 700;
+            d.ragdollVy = -480;
+            d.ragdollRot = dir * 9;
+          }
+          this.cameras.main.shake(120, 0.005);
+          return;
+        }
+
+        // Default: invincible window blocks damage (Finley's Guinness sets a long one)
+        if (this.playerState.invincibleUntil > this.time.now) return;
+        this.damagePlayer(data.touchDmg);
+        this.playerState.invincibleUntil = this.time.now + 600;
+        // Knockback
+        const dir = Math.sign(this.player.x - enemy.x) || 1;
+        this.player.setVelocityX(280 * dir);
+        this.player.setVelocityY(-220);
+      });
+
+      // Powerup pickup
+      this.physics.add.overlap(this.player, this.powerupOrb, () => {
+        if (this.powerupOrb.visible && !this.powerupHeld && !this.powerupActive) {
+          this.powerupHeld = true;
+          this.powerupOrb.setVisible(false);
+          this.powerupOrb.setActive(false);
+          // Respawn later
+          this.time.delayedCall(18000, () => this.respawnPowerup());
+          // Grab visual
+          this.cameras.main.flash(120, 255, 200, 80);
+        }
+      });
+    }
+
+    setupCamera() {
+      this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+      this.cameras.main.setDeadzone(120, 80);
+    }
+
+    // -----------------------------------------------------------------------
+    // UPDATE LOOP
+    // -----------------------------------------------------------------------
+    update(time, delta) {
+      if (this.gameOver) return;
+
+      // Current effective time factor (for custom non-physics logic)
+      const timeScale = this.bulletTimeActive ? BULLET_TIME_FACTOR : 1.0;
+      const eDelta = delta * timeScale; // effective delta for manual systems
+
+      this.updateBulletTime(delta, timeScale);
+      this.updatePlayer(delta, eDelta, time);
+      this.updateEnemies(delta, eDelta, time);
+      this.updateBullets();
+      this.updateRain(eDelta);
+      this.updatePuddles(delta);
+      this.updatePowerupActive(eDelta);
+      this.updateHUD();
+      this.checkWaveProgress();
+    }
+
+    // -----------------------------------------------------------------------
+    updateBulletTime(delta, timeScale) {
+      const wantActive =
+        this.keys.bulletTime.isDown &&
+        this.bulletTimeEnergy > 15 &&
+        !this.bulletTimeActive;
+      const wantStop =
+        (!this.keys.bulletTime.isDown || this.bulletTimeEnergy <= 0) &&
+        this.bulletTimeActive;
+
+      if (wantActive) this.enterBulletTime();
+      if (wantStop)   this.exitBulletTime();
+
+      // Drain / regen
+      const dt = delta / 1000;
+      if (this.bulletTimeActive) {
+        this.bulletTimeEnergy -= BULLET_TIME_DRAIN * dt;
+        if (this.bulletTimeEnergy < 0) this.bulletTimeEnergy = 0;
+      } else {
+        this.bulletTimeEnergy += BULLET_TIME_REGEN * dt;
+        if (this.bulletTimeEnergy > 100) this.bulletTimeEnergy = 100;
+      }
+
+      // Animate overlay alphas toward target
+      const targetBlue = this.bulletTimeActive ? 0.22 : 0;
+      const targetDesat = this.bulletTimeActive ? 0.85 : 0;
+      const targetVig = this.bulletTimeActive ? 0.95 : 0;
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const k = Math.min(1, delta / 160);
+      this.blueOverlay.alpha  = lerp(this.blueOverlay.alpha,  targetBlue,  k);
+      this.desatOverlay.alpha = lerp(this.desatOverlay.alpha, targetDesat, k);
+      this.vignette.alpha     = lerp(this.vignette.alpha,     targetVig,   k);
+    }
+
+    enterBulletTime() {
+      this.bulletTimeActive = true;
+      // Slow physics world (higher timeScale = slower simulation)
+      this.physics.world.timeScale = 1 / BULLET_TIME_FACTOR;
+      this.tweens.timeScale = BULLET_TIME_FACTOR;
+      // Deep whoosh via camera shake and slight zoom
+      this.cameras.main.shake(120, 0.003);
+      this.cameras.main.zoomTo(1.08, 250, 'Sine.easeOut');
+    }
+
+    exitBulletTime() {
+      this.bulletTimeActive = false;
+      this.physics.world.timeScale = 1;
+      this.tweens.timeScale = 1;
+      this.cameras.main.zoomTo(1.0, 250, 'Sine.easeOut');
+    }
+
+    // -----------------------------------------------------------------------
+    updatePlayer(delta, eDelta, time) {
+      const ps = this.playerState;
+      const body = this.player.body;
+
+      // Track grounded for coyote time
+      const onGround = body.blocked.down || body.touching.down;
+      if (onGround) {
+        ps.lastGroundedAt = time;
+        ps.hasUsedDive = false;
+      }
+
+      // Horizontal input
+      const left = this.keys.left.isDown;
+      const right = this.keys.right.isDown;
+
+      // Slide detection (edge on S + direction, only while on ground and moving)
+      const sNow = this.keys.down.isDown;
+      const sJustPressed = sNow && !this.sWasDown;
+      this.sWasDown = sNow;
+
+      // Crouching vs sliding
+      if (!ps.isSliding) {
+        if (sJustPressed && onGround && (left || right)) {
+          // Enter slide
+          ps.isSliding = true;
+          ps.slideEndsAt = time + SLIDE_MS;
+          const dir = right ? 1 : -1;
+          ps.facing = dir;
+          this.player.setVelocityX(dir * SLIDE_VEL);
+          // Lower hitbox
+          this.player.body.setSize(28, 30);
+          this.player.body.setOffset(11, 38);
+          this.player.setRotation(dir * 0.25);
+          this.cameras.main.shake(60, 0.002);
+        } else if (sNow && onGround) {
+          ps.isCrouching = true;
+        } else {
+          ps.isCrouching = false;
+        }
+      }
+
+      // End slide on timeout or if leaves ground
+      if (ps.isSliding && (time >= ps.slideEndsAt || !onGround)) {
+        ps.isSliding = false;
+        this.player.body.setSize(28, 56);
+        this.player.body.setOffset(11, 12);
+        this.player.setRotation(0);
+      }
+
+      // Horizontal movement — speed multiplier varies per active powerup
+      let speedMul = 1;
+      if (this.powerupActive) {
+        switch (this.powerupKind) {
+          case 'connor':  speedMul = 1.5; break; // Gangster +50%
+          case 'callum':  speedMul = 2.0; break; // Chow double speed
+          case 'finley':  speedMul = 1.0; break; // Guinness — invincible, normal speed
+          case 'declan':  speedMul = 1.0; break; // Frog — jump bonus only
+          case 'aaron':   speedMul = 2.0; break; // Goblin — double speed
+          case 'charlie': speedMul = 0.55; break; // Fatter — sluggish
+        }
+      }
+      if (ps.isCrouching)     speedMul = 0.45;
+      if (ps.isSliding)       speedMul = 0; // don't override slide velocity
+
+      if (!ps.isSliding) {
+        if (left) {
+          this.player.setVelocityX(-ps.baseSpeed * speedMul);
+          ps.facing = -1;
+          this.player.setFlipX(true);
+        } else if (right) {
+          this.player.setVelocityX(ps.baseSpeed * speedMul);
+          ps.facing = 1;
+          this.player.setFlipX(false);
+        } else {
+          // friction
+          this.player.setVelocityX(this.player.body.velocity.x * 0.8);
+        }
+      }
+
+      // Jump + dive + coyote time
+      const jumpPressed =
+        this.keys.jump.isDown || this.keys.up.isDown;
+      const jumpJustPressed = jumpPressed && !this.jumpWasDown;
+      this.jumpWasDown = jumpPressed;
+
+      // Charlie can't jump while in Fatter mode
+      const jumpBlocked = this.powerupActive && this.powerupKind === 'charlie';
+
+      if (jumpJustPressed && !jumpBlocked) {
+        ps.lastJumpPressedAt = time;
+
+        const canJump =
+          onGround ||
+          (time - ps.lastGroundedAt) <= COYOTE_MS;
+
+        // Frog mode triples jump height (sqrt(3) ≈ 1.732 on velocity)
+        const jumpVel =
+          (this.powerupActive && this.powerupKind === 'declan')
+            ? JUMP_VEL * 1.732
+            : JUMP_VEL;
+
+        if (canJump) {
+          this.player.setVelocityY(jumpVel);
+          // reset dive use — we left the ground
+          ps.hasUsedDive = false;
+          // Crouch/slide breaks jump allowed
+          if (ps.isSliding) {
+            ps.isSliding = false;
+            this.player.body.setSize(28, 56);
+            this.player.body.setOffset(11, 12);
+            this.player.setRotation(0);
+          }
+        } else if (!onGround && !ps.hasUsedDive) {
+          // DIVE — one use per airborne, in current facing direction
+          ps.hasUsedDive = true;
+          const dir = ps.facing || 1;
+          this.player.setVelocityX(dir * DIVE_VEL_X);
+          this.player.setVelocityY(DIVE_VEL_Y);
+          this.player.setRotation(dir * 0.5);
+          this.cameras.main.shake(80, 0.004);
+          // Blood-spray style spark from player for visual oomph
+          this.sparkFX.emitParticleAt(this.player.x, this.player.y + 10, 6);
+        }
+      }
+
+      // After a dive, restore rotation once on ground
+      if (onGround && !ps.isSliding && this.player.rotation !== 0) {
+        this.player.setRotation(0);
+      }
+
+      // Powerup activation
+      const eNow = this.keys.powerup.isDown;
+      const eJust = eNow && !this.eWasDown;
+      this.eWasDown = eNow;
+      if (eJust && this.powerupHeld && !this.powerupActive) {
+        this.activatePowerup();
+      }
+
+      // Frog tongue — F key during Frog mode only
+      const fNow = this.keys.tongue.isDown;
+      const fJust = fNow && !this.fWasDown;
+      this.fWasDown = fNow;
+      if (fJust && this.powerupActive && this.powerupKind === 'declan') {
+        this.shootTongue();
+      }
+
+      // Invincibility flicker — but Finley's invincible glow shouldn't flicker
+      const finleyInv = this.powerupActive && this.powerupKind === 'finley';
+      if (ps.invincibleUntil > time && !finleyInv) {
+        this.player.setAlpha(Math.floor(time / 60) % 2 ? 0.4 : 1);
+      } else {
+        this.player.setAlpha(1);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    updateEnemies(delta, eDelta, time) {
+      for (const [enemy, data] of this.enemyData.entries()) {
+        if (!data.alive) {
+          // Ragdoll — apply custom physics-free motion
+          enemy.y += data.ragdollVy * (eDelta / 1000);
+          enemy.x += data.ragdollVx * (eDelta / 1000);
+          data.ragdollVy += 300 * (eDelta / 1000); // slow fall
+          enemy.rotation += data.ragdollRot * (eDelta / 1000);
+          if (enemy.y > GROUND_Y + 40) {
+            // Settle on ground
+            enemy.y = GROUND_Y + 40;
+            data.ragdollVy = 0;
+            data.ragdollVx *= 0.85;
+            data.ragdollRot *= 0.9;
+          }
+          continue;
+        }
+
+        const px = this.player.x;
+        const ex = enemy.x;
+        const dx = px - ex;
+        const dist = Math.abs(dx);
+        const dir = Math.sign(dx) || 1;
+        const stats = ENEMY_STATS[data.type];
+
+        // Type-specific AI
+        if (data.type === 'chav') {
+          // Patrols; sometimes stops and shoots
+          if (dist < 480) {
+            // Face player and occasionally shoot
+            enemy.setFlipX(dx < 0);
+            if (time - data.lastShotAt > 1600) {
+              data.lastShotAt = time;
+              this.enemyShoot(enemy, dir);
+            }
+            enemy.setVelocityX(dir * stats.speed * 0.4);
+          } else {
+            // Patrol
+            if (enemy.x < data.patrolOrigin - 80) data.patrolDir = 1;
+            if (enemy.x > data.patrolOrigin + 80) data.patrolDir = -1;
+            enemy.setVelocityX(data.patrolDir * stats.speed * 0.6);
+            enemy.setFlipX(data.patrolDir < 0);
+          }
+        } else if (data.type === 'bouncer') {
+          // Slow, charges when close
+          if (dist < 300) {
+            enemy.setVelocityX(dir * stats.speed * 2.2);
+            enemy.setFlipX(dx < 0);
+          } else if (dist < 600) {
+            enemy.setVelocityX(dir * stats.speed * 0.6);
+            enemy.setFlipX(dx < 0);
+          } else {
+            enemy.setVelocityX(0);
+          }
+        } else if (data.type === 'hoodie') {
+          // Fast erratic rusher
+          if (time > data.nextActionAt) {
+            data.nextActionAt = time + 200 + Math.random() * 300;
+            data.patrolDir = dir; // lock onto player
+            // Jump occasionally
+            if (enemy.body.blocked.down && Math.random() > 0.7) {
+              enemy.setVelocityY(-420);
+            }
+          }
+          enemy.setVelocityX(dir * stats.speed);
+          enemy.setFlipX(dx < 0);
+        }
+      }
+    }
+
+    enemyShoot(enemy, dir) {
+      const bx = enemy.x + dir * 22;
+      const by = enemy.y - 4;
+      const b = this.enemyBullets.create(bx, by, 'bullet');
+      b.setVelocity(dir * 500, -40 + (Math.random() - 0.5) * 40);
+      b.setGravityY(BULLET_GRAVITY);
+      b.body.setSize(14, 4);
+      b.setFlipX(dir < 0);
+      this.sparkFX.emitParticleAt(bx, by, 2);
+      // Kill after 2s
+      this.time.delayedCall(2200, () => { if (b.active) b.destroy(); });
+    }
+
+    // -----------------------------------------------------------------------
+    updateBullets() {
+      // Remove bullets that leave world bounds
+      const cleanup = (b) => {
+        if (b.x < -50 || b.x > WORLD_W + 50 || b.y > GH + 100) {
+          b.destroy();
+        }
+      };
+      this.bullets.getChildren().forEach(cleanup);
+      this.enemyBullets.getChildren().forEach(cleanup);
+    }
+
+    // -----------------------------------------------------------------------
+    updateRain(eDelta) {
+      // In bullet time, rain visibly slows
+      const dtSec = eDelta / 1000;
+      const g = this.rainGfx;
+      g.clear();
+      const color = this.bulletTimeActive ? 0x88bbee : 0x6688bb;
+      const alpha = this.bulletTimeActive ? 0.55 : 0.32;
+      g.lineStyle(1, color, alpha);
+      for (const r of this.rain) {
+        r.y += r.v * dtSec;
+        r.x -= 40 * dtSec; // slight diagonal
+        if (r.x < -20) r.x = GW + 20;
+        // Splash when the drop reaches the street surface (screen y ~= ground y)
+        if (r.y > GROUND_Y) {
+          const worldX = this.cameras.main.scrollX + r.x;
+          if (Math.random() > 0.55) {
+            // Burst of 1-2 small white splashes at the impact point
+            this.splashFX.emitParticleAt(worldX, GROUND_Y + 2, 1 + Math.floor(Math.random() * 2));
+          }
+          r.y = -10;
+          r.x = Math.random() * GW;
+          r.v = 720 + Math.random() * 360;
+        }
+        g.lineBetween(r.x, r.y, r.x - 4, r.y + r.len);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    updatePuddles(delta) {
+      // Neon reflections in puddles — animate alpha subtly
+      const t = this.time.now / 600;
+      this.puddles.forEach(p => {
+        p.g.alpha = 0.6 + 0.2 * Math.sin(t + p.phase);
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // POWERUPS — per-character activate/deactivate/update.
+    // -----------------------------------------------------------------------
+    updatePowerupActive(eDelta) {
+      if (!this.powerupActive) return;
+      this.powerupTimer -= eDelta;
+
+      // Per-frame visuals/logic by character
+      const px = this.player.x, py = this.player.y;
+      switch (this.powerupKind) {
+        case 'callum': {
+          // Auto-melee every 500ms — kill any enemy within 120px
+          this.chowMeleeTimer = (this.chowMeleeTimer || 0) - eDelta;
+          if (this.chowMeleeTimer <= 0) {
+            this.chowMeleeTimer = 500;
+            let killed = 0;
+            for (const [enemy, data] of this.enemyData.entries()) {
+              if (!data.alive) continue;
+              const dx = enemy.x - px, dy = enemy.y - py;
+              if (Math.hypot(dx, dy) < 120) {
+                this.killEnemy(enemy, Math.sign(dx) || 1);
+                killed += 1;
+              }
+            }
+            if (killed > 0) {
+              this.showFloatingText(px, py - 50, 'CHOW!', '#ffaa22');
+              this.cameras.main.shake(60, 0.003);
+            }
+          }
+          break;
+        }
+        case 'finley': {
+          // Keep invincibility refreshed and reposition pint + golden glow
+          this.playerState.invincibleUntil = this.time.now + 200;
+          const facing = this.playerState.facing || 1;
+          if (this.finleyPint) {
+            this.finleyPint.x = px + facing * 14;
+            this.finleyPint.y = py + 4;
+          }
+          if (this.finleyGlow) {
+            this.finleyGlow.x = px;
+            this.finleyGlow.y = py;
+            this.finleyGlow.alpha = 0.55 + 0.35 * Math.sin(this.time.now / 90);
+          }
+          break;
+        }
+        case 'charlie': {
+          // Stays invincible the whole duration
+          this.playerState.invincibleUntil = this.time.now + 200;
           break;
         }
       }
-    }
-  }
 
-  // ─── UPDATE ──────────────────────────────────────────────────────────────
-  update(time, rawDelta) {
-    if (!gameStarted || this.isDead || this.isWon) return;
-
-    const dt = Math.min(rawDelta / 1000, 0.05);
-
-    // ── bullet time ──
-    const shiftHeld = this.keys.shift.isDown;
-    if (shiftHeld && this.btMeter > 0) {
-      this.btActive = true;
-    } else if (!shiftHeld) {
-      this.btActive = false;
-    }
-    if (this.btActive) {
-      this.btMeter = Math.max(0, this.btMeter - BT_DRAIN * dt);
-      if (this.btMeter === 0) this.btActive = false;
-    } else {
-      this.btMeter = Math.min(BT_MAX, this.btMeter + BT_REGEN * dt);
-    }
-    const targetTS = this.btActive ? 0.2 : 1.0;
-    this.timeScale += (targetTS - this.timeScale) * 0.18;
-    const ts = this.timeScale;
-    const sdt = dt * ts;
-
-    // ── player movement ──
-    const p = this.player;
-    p.invincible = Math.max(0, p.invincible - dt);
-
-    const moveLeft = this.keys.left.isDown;
-    const moveRight = this.keys.right.isDown;
-    const slideKey = this.keys.slide.isDown;
-
-    if (p.onGround && slideKey && (moveLeft || moveRight)) {
-      p.sliding = true;
-      p.slideDir = moveLeft ? -1 : 1;
-      p.slideTimer = (p.slideTimer || 0) - dt;
-      p.vx = p.slideDir * SLIDE_SPEED * ts; // slide speed not ts-scaled for control feel
-      p.h = 24; // crouched
-    } else {
-      if (p.sliding) p.h = PLAYER_H;
-      p.sliding = false;
-      p.h = PLAYER_H;
-
-      if (!p.diving) {
-        if (moveLeft) { p.vx = -220; p.facing = -1; }
-        else if (moveRight) { p.vx = 220; p.facing = 1; }
-        else p.vx *= 0.75;
+      if (this.powerupTimer <= 0) {
+        this.deactivatePowerup();
       }
     }
 
-    if (p.diving && p.onGround) {
-      p.diving = false;
-      this.diveUsed = false;
+    activatePowerup() {
+      const charId = this.selectedCharacter;
+      this.powerupActive = true;
+      this.powerupHeld = false;
+      this.powerupKind = charId;
+      this.powerupTimer = POWERUP_DURATION[charId] || 6000;
+      this.powerupMax = this.powerupTimer;
+
+      // Common activation flair
+      this.cameras.main.flash(300, 255, 220, 80);
+      this.cameras.main.zoomTo(1.06, 120, 'Sine.easeOut');
+      this.time.delayedCall(150, () => this.cameras.main.zoomTo(1.0, 180));
+
+      // Per-character visuals
+      switch (charId) {
+        case 'connor':
+          // Sunglasses variant + golden tint
+          this.player.setTexture('player_connor_gangster');
+          this.player.setTint(0xffdd99);
+          break;
+        case 'callum':
+          // Red tint, fast aura — auto-melee handled per-frame
+          this.player.setTint(0xff8866);
+          this.chowMeleeTimer = 0;
+          this.showFloatingText(this.player.x, this.player.y - 60, 'CHOW!', '#ffaa22');
+          break;
+        case 'finley':
+          // Golden glow, pint of Guinness, invincibility
+          this.player.setTint(0xffe4a8);
+          this.playerState.invincibleUntil = this.time.now + this.powerupTimer + 200;
+          this.finleyGlow = this.add.graphics().setDepth(8);
+          this.finleyGlow.fillStyle(0xffdd44, 0.35); this.finleyGlow.fillCircle(0, 0, 50);
+          this.finleyGlow.fillStyle(0xffeeaa, 0.20); this.finleyGlow.fillCircle(0, 0, 80);
+          this.finleyPint = this.add.graphics().setDepth(11);
+          this.finleyPint.fillStyle(0x3a1a08, 1); this.finleyPint.fillRect(-5, -8, 10, 14);
+          this.finleyPint.fillStyle(0xead8ad, 1); this.finleyPint.fillRect(-5, -8, 10, 3);
+          this.finleyPint.fillStyle(0x1a0d04, 1); this.finleyPint.fillRect(-5, 5, 10, 1);
+          break;
+        case 'declan':
+          // Frog green
+          this.player.setTint(0x33ff44);
+          break;
+        case 'aaron':
+          // Goblin: hunched (60% height), green-grey tint
+          this.player.setTint(0x88aa66);
+          this.player.setScale(1, 0.6);
+          this.showFloatingText(this.player.x, this.player.y - 60, 'MINE!', '#88ff44');
+          break;
+        case 'charlie':
+          // Fatter: 2x scale, immune
+          this.player.setTint(0xffccaa);
+          this.player.setScale(2, 2);
+          this.playerState.invincibleUntil = this.time.now + this.powerupTimer + 200;
+          break;
+      }
     }
 
-    // gravity
-    p.vy += GRAVITY * sdt;
-    p.x += p.vx * sdt;
-    p.y += p.vy * sdt;
-    p.x = Phaser.Math.Clamp(p.x, p.w / 2, this.worldWidth - p.w / 2);
+    deactivatePowerup() {
+      const charId = this.powerupKind;
 
-    this._resolveEntityPlatforms(p);
-    if (p.onGround) { p.diving = false; }
+      this.powerupActive = false;
+      this.powerupTimer = 0;
+      this.player.clearTint();
 
-    // ── enemies ──
-    this.enemies.forEach(en => {
-      if (!en.alive) {
-        if (en.ragdoll) {
-          en.ragdollTimer -= dt;
-          en.ragdollAngle += en.ragdollAngularV * sdt;
-          en.vy += GRAVITY * sdt;
-          en.y += en.vy * sdt;
-          en.x += en.vx * sdt;
-          if (en.y > H + 100) en.ragdoll = false;
+      // Reset per-character visuals
+      switch (charId) {
+        case 'connor':
+          this.player.setTexture('player_connor');
+          break;
+        case 'aaron':
+          this.player.setScale(1, 1);
+          break;
+        case 'charlie':
+          this.player.setScale(1, 1);
+          break;
+        case 'finley':
+          if (this.finleyGlow) { this.finleyGlow.destroy(); this.finleyGlow = null; }
+          if (this.finleyPint) { this.finleyPint.destroy(); this.finleyPint = null; }
+          break;
+      }
+
+      this.powerupKind = null;
+    }
+
+    respawnPowerup() {
+      if (this.gameOver) return;
+      // Respawn at one of three locations
+      const locs = [{ x: 800, y: GROUND_Y - 40 }, { x: 1500, y: GROUND_Y - 40 }, { x: 2400, y: GROUND_Y - 40 }];
+      const loc = locs[Math.floor(Math.random() * locs.length)];
+      this.powerupOrb.x = loc.x;
+      this.powerupOrb.y = loc.y;
+      this.powerupOrb.setVisible(true);
+      this.powerupOrb.setActive(true);
+    }
+
+    // -----------------------------------------------------------------------
+    shoot(pointer) {
+      const now = this.time.now;
+      if (now - this.lastShotTime < PLAYER_FIRE_CD) return;
+      this.lastShotTime = now;
+
+      // Compute direction from player to pointer (world coords)
+      const px = this.player.x;
+      const py = this.player.y;
+      const wx = pointer.worldX;
+      const wy = pointer.worldY;
+      const dx = wx - px;
+      const dy = wy - py;
+      const dist = Math.max(20, Math.hypot(dx, dy));
+      const nx = dx / dist, ny = dy / dist;
+
+      this.playerState.facing = nx >= 0 ? 1 : -1;
+      this.player.setFlipX(nx < 0);
+
+      // Spawn bullet(s) — Connor's gangster mode fires 2 at slight spread
+      const dualPistols = this.powerupActive && this.powerupKind === 'connor';
+      const barrels = dualPistols ? [-0.08, 0.08] : [0];
+      barrels.forEach(off => {
+        const sx = px + nx * 28;
+        const sy = py + ny * 6 - 4;
+        const spread = rotateVec(nx, ny, off);
+        const b = this.bullets.create(sx, sy, 'bullet');
+        b.setRotation(Math.atan2(spread.y, spread.x));
+        b.setVelocity(spread.x * BULLET_SPEED, spread.y * BULLET_SPEED);
+        b.setGravityY(BULLET_GRAVITY);
+        b.body.setSize(14, 4);
+        b.damage = this.playerState.damage; // damage carried per-bullet
+        // Muzzle flash
+        this.sparkFX.emitParticleAt(sx, sy, 5);
+      });
+
+      // Recoil camera shake
+      this.cameras.main.shake(70, 0.003);
+
+      // Small recoil kick on player — extra kick when dual-wielding
+      const recoilMul = dualPistols ? 1.6 : 1;
+      this.player.setVelocityX(
+        this.player.body.velocity.x + (-nx * 60) * recoilMul
+      );
+    }
+
+    // Frog mode: fast, high-damage horizontal tongue projectile
+    shootTongue() {
+      const dir = this.playerState.facing || 1;
+      const sx = this.player.x + dir * 28;
+      const sy = this.player.y + 2;
+      const t = this.bullets.create(sx, sy, 'tongue');
+      t.setVelocity(dir * 1500, 0);
+      t.body.setAllowGravity(false);
+      t.body.setSize(24, 8);
+      t.setFlipX(dir < 0);
+      t.damage = 9999; // tongue insta-kills any standard enemy
+      t.isTongue = true;
+      this.sparkFX.emitParticleAt(sx, sy, 8);
+      this.cameras.main.shake(40, 0.002);
+      // Auto-destroy after a short window
+      this.time.delayedCall(700, () => { if (t.active) t.destroy(); });
+    }
+
+    // -----------------------------------------------------------------------
+    damageEnemy(enemy, amount, bulletX, bulletY) {
+      const data = this.enemyData.get(enemy);
+      if (!data || !data.alive) return;
+
+      data.hp -= amount;
+      this.bloodFX.emitParticleAt(bulletX, bulletY, 8);
+      // White hit flash
+      enemy.setTintFill(0xffffff);
+      this.time.delayedCall(60, () => {
+        if (enemy.active) enemy.clearTint();
+      });
+      // Small knockback
+      const dir = Math.sign(bulletX ? (enemy.x - bulletX) : 1) || 1;
+      enemy.setVelocityX(dir * 120);
+
+      if (data.hp <= 0) {
+        this.killEnemy(enemy, dir);
+      }
+    }
+
+    killEnemy(enemy, dir) {
+      const data = this.enemyData.get(enemy);
+      if (!data) return;
+      data.alive = false;
+      this.kills += 1;
+
+      // Ragdoll: disable physics body, apply custom motion
+      enemy.body.enable = false;
+      enemy.setTint(0x884444);
+      data.ragdollVx = dir * (220 + Math.random() * 200);
+      data.ragdollVy = -300 - Math.random() * 160;
+      data.ragdollRot = dir * (2 + Math.random() * 4);
+
+      // Blood burst
+      this.bloodFX.emitParticleAt(enemy.x, enemy.y, 18);
+      this.cameras.main.shake(140, 0.005);
+
+      // Remove from enemy collisions (already disabled) but keep sprite for ragdoll visual
+      this.time.delayedCall(2500, () => {
+        this.tweens.add({
+          targets: enemy, alpha: 0, duration: 600,
+          onComplete: () => {
+            // Free the map entry so infinite waves don't leak references
+            this.enemyData.delete(enemy);
+            if (enemy) enemy.destroy();
+          },
+        });
+      });
+    }
+
+    // Floating combat text (CHOW!, MINE!, etc.)
+    showFloatingText(x, y, text, color) {
+      const t = this.add.text(x, y, text, {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '34px',
+        color: color, stroke: '#000000', strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(60);
+      this.tweens.add({
+        targets: t,
+        y: y - 70,
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1, to: 1.4 },
+        duration: 800,
+        ease: 'Sine.easeOut',
+        onComplete: () => t.destroy(),
+      });
+    }
+
+    damagePlayer(amount) {
+      if (this.gameOver) return;
+      this.playerState.hp -= amount;
+      this.cameras.main.shake(160, 0.006);
+      // Red tint flash — then restore the active powerup tint (or none)
+      this.player.setTint(0xff4444);
+      this.time.delayedCall(120, () => {
+        if (!this.player) return;
+        this.player.clearTint();
+        if (this.powerupActive) {
+          // Re-apply the powerup's tint
+          const tint = {
+            connor: 0xffdd99, callum: 0xff8866, finley: 0xffe4a8,
+            declan: 0x33ff44, aaron: 0x88aa66, charlie: 0xffccaa,
+          }[this.powerupKind];
+          if (tint != null) this.player.setTint(tint);
         }
-        return;
+      });
+
+      if (this.playerState.hp <= 0) {
+        this.playerState.hp = 0;
+        this.triggerDeath();
       }
+    }
 
-      // patrol
-      en.x += en.vx * sdt;
-      if (en.x < en.patrolMin) { en.x = en.patrolMin; en.vx *= -1; en.facing = 1; }
-      if (en.x > en.patrolMax) { en.x = en.patrolMax; en.vx *= -1; en.facing = -1; }
-      en.vy += GRAVITY * sdt;
-      en.y += en.vy * sdt;
-      this._resolveEntityPlatforms(en);
+    triggerDeath() {
+      this.gameOver = true;
+      // Slow-mo start
+      this.physics.world.timeScale = 3.0;
+      this.tweens.timeScale = 0.35;
 
-      // enemy shooting
-      en.shootTimer -= dt * ts;
-      if (en.shootTimer <= 0) {
-        en.shootTimer = 2.2 + Math.random() * 1.5;
-        this._enemyShoot(en);
-      }
-      en.flashTimer = Math.max(0, en.flashTimer - dt);
-    });
+      // Red flash overlay
+      const red = this.add.rectangle(0, 0, GW, GH, 0xaa0000)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({
+        targets: red, alpha: 0.6, duration: 500, ease: 'Sine.easeOut',
+      });
 
-    // ── bullets ──
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
-      const b = this.bullets[i];
-      b.trail.push({ x: b.x, y: b.y });
-      if (b.trail.length > 10) b.trail.shift();
+      // Player fall
+      this.player.body.enable = false;
+      this.tweens.add({
+        targets: this.player,
+        y: GROUND_Y - 10,
+        rotation: Math.PI / 2,
+        duration: 1400, ease: 'Sine.easeOut',
+      });
 
-      b.x += b.vx * sdt;
-      b.y += b.vy * sdt;
+      this.cameras.main.shake(400, 0.01);
 
-      // out of bounds
-      if (b.x < 0 || b.x > this.worldWidth || b.y < 0 || b.y > H + 100) {
-        b.gfx.destroy();
-        this.bullets.splice(i, 1);
-        continue;
-      }
+      this.time.delayedCall(2000, () => {
+        this.scene.start('Death', {
+          character: this.selectedCharacter,
+          kills: this.kills,
+          wave: this.wave,
+        });
+      });
+    }
 
-      let hit = false;
-      if (b.fromPlayer) {
-        // check enemy hits
-        for (const en of this.enemies) {
-          if (!en.alive) continue;
-          if (Math.abs(b.x - en.x) < en.w / 2 + 4 &&
-              b.y > en.y - en.h && b.y < en.y + 4) {
-            en.hp--;
-            en.flashTimer = 0.12;
-            this._spawnBlood(en.x, en.y - en.h / 2);
-            if (en.hp <= 0) this._killEnemy(en);
-            hit = true; break;
-          }
-        }
+    // -----------------------------------------------------------------------
+    updateHUD() {
+      // HP bar
+      const hpFrac = Math.max(0, this.playerState.hp / this.playerState.maxHp);
+      this.hudHpFill.width = 220 * hpFrac;
+      // Color shifts to red when low
+      if (hpFrac < 0.25) this.hudHpFill.fillColor = 0xff2200;
+      else if (hpFrac < 0.5) this.hudHpFill.fillColor = 0xdd6622;
+      else this.hudHpFill.fillColor = 0xcc2222;
+
+      // Bullet time
+      const btFrac = this.bulletTimeEnergy / 100;
+      this.hudBtFill.width = 180 * btFrac;
+      if (this.bulletTimeEnergy < 15) this.hudBtFill.fillColor = 0x555555;
+      else this.hudBtFill.fillColor = 0x33ccff;
+
+      // Kills (no /total — waves are infinite)
+      this.hudKills.setText('KILLS: ' + this.kills);
+
+      // Wave indicator
+      this.hudWave.setText('WAVE ' + this.wave);
+
+      // Powerup indicator — name is character-specific
+      const powName = CHARACTERS[this.selectedCharacter].powerup;
+      if (this.powerupActive) {
+        this.hudPowerupLabel.setText('POWERUP: ' + powName + ' ACTIVE');
+        this.hudPowerupLabel.setColor('#ffaa22');
+        this.hudPowerupBarBg.setVisible(true);
+        this.hudPowerupBarFill.setVisible(true);
+        this.hudPowerupBarFill.width = 180 * (this.powerupTimer / this.powerupMax);
+      } else if (this.powerupHeld) {
+        this.hudPowerupLabel.setText('POWERUP: ' + powName + ' (PRESS E)');
+        this.hudPowerupLabel.setColor('#ffdd88');
+        this.hudPowerupBarBg.setVisible(false);
+        this.hudPowerupBarFill.setVisible(false);
       } else {
-        // check player hit
-        if (!p.invincible && Math.abs(b.x - p.x) < p.w / 2 + 4 &&
-            b.y > p.y - p.h && b.y < p.y + 4) {
-          this._damagePlayer(12);
-          p.flashTimer = 0.15;
-          hit = true;
-        }
-      }
-      if (hit) {
-        this.cameras.main.shake(40, 0.003);
-        b.gfx.destroy();
-        this.bullets.splice(i, 1);
+        this.hudPowerupLabel.setText('POWERUP: NONE');
+        this.hudPowerupLabel.setColor('#666666');
+        this.hudPowerupBarBg.setVisible(false);
+        this.hudPowerupBarFill.setVisible(false);
       }
     }
 
-    // ── particles ──
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const pt = this.particles[i];
-      pt.life -= dt;
-      pt.x += pt.vx * sdt;
-      pt.y += pt.vy * sdt;
-      pt.vy += 400 * sdt;
-      if (pt.life <= 0) this.particles.splice(i, 1);
+    // -----------------------------------------------------------------------
+    // Infinite waves — when all enemies dead, 3s pause then spawn next wave.
+    checkWaveProgress() {
+      if (this.gameOver || this.waveTransitioning) return;
+      let alive = 0;
+      for (const data of this.enemyData.values()) {
+        if (data.alive) { alive += 1; break; }
+      }
+      if (alive === 0) {
+        this.waveTransitioning = true;
+        this.time.delayedCall(3000, () => {
+          if (this.gameOver) return;
+          this.wave += 1;
+          this.spawnWave(this.wave);
+          this.showWaveBanner(this.wave);
+          this.waveTransitioning = false;
+        });
+      }
     }
 
-    // ── rain ──
-    const rainSpeed = ts < 0.5 ? 0.25 : 1.0;
-    this.rainDrops.forEach(r => {
-      r.y += r.speed * dt * rainSpeed;
-      r.x += 30 * dt * rainSpeed;
-      if (r.y > H) { r.y = -20; r.x = Math.random() * W; }
-    });
+    showWaveBanner(n) {
+      const banner = this.add.text(GW / 2, GH / 2 - 20, 'WAVE ' + n, {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '120px',
+        color: '#ff3333', stroke: '#330000', strokeThickness: 8,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0).setScale(0.5);
 
-    // ── camera follow ──
-    this._camTarget.x = p.x;
-    this._camTarget.y = p.y;
-    this.cameras.main.startFollow(this._camTarget, false, 0.08, 0.08);
+      const sub = this.add.text(GW / 2, GH / 2 + 60, 'INCOMING', {
+        fontFamily: 'monospace', fontSize: '20px', color: '#ffaa44',
+        letterSpacing: 6,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0);
 
-    // ── check win ──
-    if (this.enemies.every(e => !e.alive) && !this.isWon) {
-      this.isWon = true;
-      gameWon = true;
-      document.getElementById('win-screen').style.display = 'flex';
-    }
-
-    // ── draw ──
-    this._draw(dt, ts);
-  }
-
-  _killEnemy(en) {
-    en.alive = false;
-    en.ragdoll = true;
-    en.ragdollAngle = 0;
-    en.ragdollAngularV = (Math.random() - 0.5) * 12;
-    en.vy = -300;
-    en.vx = (Math.random() - 0.5) * 200;
-    en.label.setVisible(false);
-    this.kills++;
-    document.getElementById('kills').textContent = this.kills;
-    this._spawnBlood(en.x, en.y - en.h / 2, 12);
-    this.cameras.main.shake(80, 0.007);
-  }
-
-  _damagePlayer(dmg) {
-    const p = this.player;
-    p.hp -= dmg;
-    p.invincible = 0.5;
-    p.hp = Math.max(0, p.hp);
-    document.getElementById('hp').textContent = p.hp;
-    if (p.hp <= 0) this._die();
-  }
-
-  _die() {
-    this.isDead = true;
-    gameOver = true;
-    this._spawnBlood(this.player.x, this.player.y - this.player.h / 2, 16);
-    this.cameras.main.shake(200, 0.012);
-    setTimeout(() => {
-      document.getElementById('death-screen').style.display = 'flex';
-    }, 600);
-  }
-
-  _spawnBlood(x, y, count = 6) {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 80 + Math.random() * 200;
-      this.particles.push({
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 80,
-        life: 0.4 + Math.random() * 0.4,
-        maxLife: 0.8,
-        r: 3 + Math.random() * 4,
-        color: Math.random() > 0.3 ? 0xcc0000 : 0x880000,
+      this.tweens.add({
+        targets: banner,
+        alpha: { from: 0, to: 1 }, scale: { from: 0.5, to: 1.1 },
+        duration: 400, ease: 'Back.easeOut',
+      });
+      this.tweens.add({
+        targets: sub, alpha: { from: 0, to: 1 }, duration: 400, delay: 200,
+      });
+      this.cameras.main.shake(160, 0.004);
+      this.time.delayedCall(1500, () => {
+        this.tweens.add({
+          targets: [banner, sub], alpha: 0, duration: 400,
+          onComplete: () => { banner.destroy(); sub.destroy(); },
+        });
       });
     }
   }
 
-  // ─── DRAW ─────────────────────────────────────────────────────────────────
-  _draw(dt, ts) {
-    const p = this.player;
+  // =============================================================================
+  // SCENE: DEATH
+  // =============================================================================
+  class DeathScene extends Phaser.Scene {
+    constructor() { super({ key: 'Death' }); }
 
-    // ── player ──
-    const pg = this.playerGfx;
-    pg.clear();
-    p.flashTimer = Math.max(0, (p.flashTimer || 0) - dt);
-    const pCol = p.flashTimer > 0 ? 0xff4444 : (p.invincible > 0 && Math.floor(p.invincible * 12) % 2 ? 0x888888 : 0xdddddd);
-
-    if (p.sliding) {
-      // crouched rect
-      pg.fillStyle(pCol, 1);
-      pg.fillRect(p.x - p.w / 2, p.y - p.h, p.w, p.h);
-    } else {
-      // body
-      pg.fillStyle(pCol, 1);
-      pg.fillRect(p.x - p.w / 2, p.y - p.h, p.w, p.h);
-      // head
-      pg.fillStyle(0xd4a876, 1);
-      pg.fillCircle(p.x, p.y - p.h - 8, 9);
-      // jacket detail
-      pg.fillStyle(0x222233, 1);
-      pg.fillRect(p.x - p.w / 2 + 2, p.y - p.h + 2, p.w - 4, p.h / 2 - 2);
+    init(data) {
+      this.payload = data || { kills: 0, wave: 1, character: 'connor' };
     }
 
-    this.playerLabel.setPosition(p.x, p.y - p.h - 20);
+    create() {
+      this.cameras.main.setBackgroundColor('#1a0505');
 
-    // muzzle flash
-    this.muzzleGfx.clear();
-    this.muzzleTimer = Math.max(0, this.muzzleTimer - dt);
-    if (this.muzzleTimer > 0) {
-      const mx = p.x + p.facing * (p.w / 2 + 6);
-      const my = p.y - p.h / 2;
-      this.muzzleGfx.fillStyle(0xffee88, 0.9);
-      this.muzzleGfx.fillCircle(mx, my, 7);
-      this.muzzleGfx.fillStyle(0xffffff, 0.5);
-      this.muzzleGfx.fillCircle(mx, my, 3);
-    }
+      const red = this.add.rectangle(0, 0, GW, GH, 0x880000)
+        .setOrigin(0, 0).setAlpha(0.15);
 
-    // ── enemies ──
-    this.enemies.forEach(en => {
-      const eg = en.gfx;
-      eg.clear();
-      if (en.ragdoll) {
-        eg.fillStyle(0x661111, 0.6);
-        const cx = en.x, cy = en.y - en.h / 2;
-        // rotate around center
-        eg.save();
-        eg.fillRect(cx - en.w / 2, cy - en.h / 2, en.w, en.h);
-        eg.restore();
-        return;
-      }
-      if (!en.alive) return;
-      const eCol = en.flashTimer > 0 ? 0xffffff : 0xaa3333;
-      eg.fillStyle(eCol, 1);
-      eg.fillRect(en.x - en.w / 2, en.y - en.h, en.w, en.h);
-      // enemy head
-      eg.fillStyle(en.flashTimer > 0 ? 0xffffff : 0xcc5555, 1);
-      eg.fillCircle(en.x, en.y - en.h - 7, 8);
-      // eyes
-      eg.fillStyle(0x000000, 1);
-      eg.fillRect(en.x - 4 + en.facing * 1, en.y - en.h - 10, 3, 3);
-      en.label.setPosition(en.x, en.y - en.h - 18);
-    });
+      // "YOU DIED" layered glow
+      const t = 'YOU DIED';
+      [
+        { thick: 22, a: 0.15 }, { thick: 14, a: 0.3 }, { thick: 6, a: 0.7 },
+      ].forEach(l => {
+        this.add.text(GW / 2, GH / 2 - 40, t, {
+          fontFamily: 'Impact', fontSize: '110px',
+          color: '#aa0000', stroke: '#aa0000', strokeThickness: l.thick,
+        }).setOrigin(0.5).setAlpha(l.a);
+      });
+      const main = this.add.text(GW / 2, GH / 2 - 40, t, {
+        fontFamily: 'Impact', fontSize: '110px',
+        color: '#ff3333', stroke: '#330000', strokeThickness: 3,
+      }).setOrigin(0.5);
 
-    // ── bullets ──
-    this.bullets.forEach(b => {
-      const bg = b.gfx;
-      bg.clear();
-      // trail
-      for (let i = 0; i < b.trail.length; i++) {
-        const alpha = (i / b.trail.length) * 0.6;
-        const size = (i / b.trail.length) * (b.fromPlayer ? 3 : 2);
-        bg.fillStyle(b.fromPlayer ? 0xffdd44 : 0xff4444, alpha);
-        bg.fillCircle(b.trail[i].x, b.trail[i].y, size);
-      }
-      // bullet
-      bg.fillStyle(b.fromPlayer ? 0xffffff : 0xff8888, 1);
-      bg.fillCircle(b.x, b.y, b.fromPlayer ? 4 : 3);
-      bg.fillStyle(b.fromPlayer ? 0xffee00 : 0xff2222, 0.8);
-      bg.fillCircle(b.x, b.y, b.fromPlayer ? 2 : 2);
-    });
+      // Kill count + wave reached
+      this.add.text(GW / 2, GH / 2 + 40,
+        'KILLS: ' + this.payload.kills, {
+          fontFamily: 'Impact', fontSize: '34px',
+          color: '#ffaa22', stroke: '#441100', strokeThickness: 2,
+        }).setOrigin(0.5);
 
-    // ── particles ──
-    const parGfx = this.add.graphics().setDepth(18);
-    parGfx.clear();
-    // redraw all particles fresh each frame using temp graphics is wasteful — use cached gfx
-    // Use a persistent particles graphics object instead
-    if (!this._parGfx) this._parGfx = this.add.graphics().setDepth(18);
-    this._parGfx.clear();
-    this.particles.forEach(pt => {
-      const alpha = pt.life / pt.maxLife;
-      this._parGfx.fillStyle(pt.color, alpha);
-      this._parGfx.fillCircle(pt.x, pt.y, pt.r * alpha);
-    });
-    parGfx.destroy();
+      this.add.text(GW / 2, GH / 2 + 76,
+        'WAVE ' + this.payload.wave + ' REACHED', {
+          fontFamily: 'Impact', fontSize: '24px',
+          color: '#33ccff', stroke: '#001a33', strokeThickness: 2,
+        }).setOrigin(0.5);
 
-    // ── rain ──
-    this.rainGfx.clear();
-    this.rainGfx.lineStyle(1, 0x2244aa, 0.3 * (ts < 0.5 ? 0.4 : 1.0));
-    this.rainDrops.forEach(r => {
-      this.rainGfx.lineBetween(r.x, r.y, r.x + 4, r.y + r.len);
-    });
+      // Character
+      this.add.text(GW / 2, GH / 2 + 110,
+        'AS ' + CHARACTERS[this.payload.character].name, {
+          fontFamily: 'monospace', fontSize: '14px', color: '#777',
+          letterSpacing: 3,
+        }).setOrigin(0.5);
 
-    // ── bullet time overlay ──
-    if (ts < 0.6) {
-      // vignette-style tint
-      if (!this._btOverlay) {
-        this._btOverlay = this.add.graphics().setDepth(25).setScrollFactor(0);
-      }
-      this._btOverlay.clear();
-      this._btOverlay.fillStyle(0x001133, 0.18 * (1 - ts));
-      this._btOverlay.fillRect(0, 0, W, H);
-      // edge vignette
-      this._btOverlay.lineStyle(40, 0x000033, 0.4 * (1 - ts));
-      this._btOverlay.strokeRect(0, 0, W, H);
-    } else if (this._btOverlay) {
-      this._btOverlay.clear();
-    }
+      // Retry prompt
+      const retry = this.add.text(GW / 2, GH - 90, 'CLICK TO RETRY', {
+        fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
+        stroke: '#550000', strokeThickness: 2, letterSpacing: 3,
+      }).setOrigin(0.5);
+      this.tweens.add({
+        targets: retry, alpha: { from: 0.4, to: 1 },
+        duration: 700, yoyo: true, repeat: -1,
+      });
 
-    // ── HUD updates ──
-    document.getElementById('bullet-time-fill').style.width = (this.btMeter / BT_MAX * 100) + '%';
-    const btLabel = document.getElementById('bt-label');
-    if (this.btActive) {
-      btLabel.style.color = '#00ffff';
-      btLabel.textContent = '⬡ BULLET TIME ACTIVE ⬡';
-    } else {
-      btLabel.style.color = '#00aaff';
-      btLabel.textContent = 'BULLET TIME  [SHIFT]';
+      this.add.text(GW / 2, GH - 50, 'ESC TO PICK ANOTHER CHARACTER', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#554040',
+        letterSpacing: 2,
+      }).setOrigin(0.5);
+
+      // Zoom-in on title
+      main.setScale(0.6);
+      this.tweens.add({ targets: main, scale: 1, duration: 700, ease: 'Back.easeOut' });
+
+      this.input.on('pointerdown', () => {
+        this.scene.start('Game', { character: this.payload.character });
+      });
+      this.input.keyboard.on('keydown-ESC', () => {
+        this.scene.start('CharacterSelect');
+      });
     }
   }
-}
 
-// ─── PHASER CONFIG ───────────────────────────────────────────────────────────
-const config = {
-  type: Phaser.AUTO,
-  width: W,
-  height: H,
-  parent: 'game-container',
-  backgroundColor: '#0b0b12',
-  scene: [GameScene],
-  audio: { noAudio: true },
-};
+  // =============================================================================
+  // SCENE: WIN
+  // =============================================================================
+  class WinScene extends Phaser.Scene {
+    constructor() { super({ key: 'Win' }); }
 
-const game = new Phaser.Game(config);
-</script>
+    init(data) {
+      this.payload = data || { kills: 0, total: 0, character: 'connor' };
+    }
+
+    create() {
+      this.cameras.main.setBackgroundColor('#051a0a');
+
+      const green = this.add.rectangle(0, 0, GW, GH, 0x00aa55)
+        .setOrigin(0, 0).setAlpha(0.12);
+
+      const t = 'CARNAGE COMPLETE';
+      [
+        { thick: 22, a: 0.15 }, { thick: 14, a: 0.3 }, { thick: 6, a: 0.7 },
+      ].forEach(l => {
+        this.add.text(GW / 2, GH / 2 - 30, t, {
+          fontFamily: 'Impact', fontSize: '80px',
+          color: '#00cc66', stroke: '#00cc66', strokeThickness: l.thick,
+        }).setOrigin(0.5).setAlpha(l.a);
+      });
+      const main = this.add.text(GW / 2, GH / 2 - 30, t, {
+        fontFamily: 'Impact', fontSize: '80px',
+        color: '#33ff88', stroke: '#002211', strokeThickness: 3,
+      }).setOrigin(0.5);
+
+      this.add.text(GW / 2, GH / 2 + 40,
+        'KILLS: ' + this.payload.kills + ' / ' + this.payload.total, {
+          fontFamily: 'Impact', fontSize: '34px',
+          color: '#ffffff', stroke: '#225544', strokeThickness: 2,
+        }).setOrigin(0.5);
+
+      this.add.text(GW / 2, GH / 2 + 82,
+        'AS ' + CHARACTERS[this.payload.character].name, {
+          fontFamily: 'monospace', fontSize: '14px', color: '#7aa',
+          letterSpacing: 3,
+        }).setOrigin(0.5);
+
+      const again = this.add.text(GW / 2, GH - 90, 'CLICK TO PLAY AGAIN', {
+        fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
+        stroke: '#005533', strokeThickness: 2, letterSpacing: 3,
+      }).setOrigin(0.5);
+      this.tweens.add({
+        targets: again, alpha: { from: 0.4, to: 1 },
+        duration: 700, yoyo: true, repeat: -1,
+      });
+
+      this.add.text(GW / 2, GH - 50, 'ESC FOR CHARACTER SELECT', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#446655',
+        letterSpacing: 2,
+      }).setOrigin(0.5);
+
+      main.setScale(0.6);
+      this.tweens.add({ targets: main, scale: 1, duration: 700, ease: 'Back.easeOut' });
+
+      this.input.on('pointerdown', () => {
+        this.scene.start('Game', { character: this.payload.character });
+      });
+      this.input.keyboard.on('keydown-ESC', () => {
+        this.scene.start('CharacterSelect');
+      });
+    }
+  }
+
+  // =============================================================================
+  // HELPERS
+  // =============================================================================
+
+  // Small seeded PRNG so backdrop generation is deterministic
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function () {
+      t = (t + 0x6D2B79F5) | 0;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function rotateVec(x, y, radians) {
+    const c = Math.cos(radians), s = Math.sin(radians);
+    return { x: x * c - y * s, y: x * s + y * c };
+  }
+
+  // =============================================================================
+  // PHASER CONFIG
+  // =============================================================================
+  const config = {
+    type: Phaser.AUTO,
+    parent: 'game',
+    width: GW,
+    height: GH,
+    backgroundColor: '#000000',
+    physics: {
+      default: 'arcade',
+      arcade: { gravity: { y: GRAVITY }, debug: false },
+    },
+    render: { pixelArt: false, antialias: true },
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [BootScene, CharacterSelectScene, GameScene, DeathScene, WinScene],
+  };
+
+  new Phaser.Game(config);
+  </script>
 </body>
 </html>
