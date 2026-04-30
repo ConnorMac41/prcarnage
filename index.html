@@ -21,7 +21,7 @@
     justify-content: center;
   }
   #game { position: relative; }
-  canvas { display: block; image-rendering: pixelated; }
+  canvas { display: block; image-rendering: auto; }
 
   /* ===== Film grain overlay (CSS) ===== */
   /* A looping SVG noise pattern, lightly blended over the canvas. Adds texture. */
@@ -145,8 +145,8 @@
 
   // Powerup duration in milliseconds, per character
   const POWERUP_DURATION = {
-    connor: 8000, callum: 6000, finley: 6000,
-    declan: 6000, aaron: 8000, charlie: 6000,
+    connor: 12000, callum: 8000, finley: 10000,
+    declan: 10000, aaron: 12000, charlie: 10000,
   };
 
   // Derived player tuning from the 1-10 stat values
@@ -195,177 +195,326 @@
   // Used by the character-select cards AND for generating in-game player texture.
   // =============================================================================
 
+  // v5: Connor — single curly wavy hair blob (no double hair), gangster
+  // outfit is dark navy with gold chain + sunglasses (no yellow tint anywhere)
   function drawConnor(g, cx, cy, opt = {}) {
-    // Baggy jeans
+    // Legs — baggy navy jeans, smoother taper
     g.fillStyle(0x1b2438);
-    g.fillRect(cx - 12, cy + 4, 24, 30);
-    // Fresh trainers (white w/ red stripe)
-    g.fillStyle(0xf5f5f5);
-    g.fillRect(cx - 13, cy + 30, 11, 6);
-    g.fillRect(cx + 2,  cy + 30, 11, 6);
-    g.fillStyle(0xaa2222);
-    g.fillRect(cx - 13, cy + 34, 11, 2);
-    g.fillRect(cx + 2,  cy + 34, 11, 2);
-    // Oversized jacket (shoreline mafia vibe) — gold when gangster
-    g.fillStyle(opt.gangster ? 0xc9a14a : 0x262626);
-    g.fillRect(cx - 17, cy - 14, 34, 26);
-    // Jacket detail line
-    g.fillStyle(opt.gangster ? 0xaa8530 : 0x1a1a1a);
-    g.fillRect(cx - 1, cy - 14, 2, 26);
-    // Skin — head
+    g.fillEllipse(cx - 7, cy + 18, 12, 30);
+    g.fillEllipse(cx + 7, cy + 18, 12, 30);
+    // White trainers with red flash
+    g.fillStyle(0xf2f2f2);
+    g.fillEllipse(cx - 7, cy + 33, 14, 7);
+    g.fillEllipse(cx + 7, cy + 33, 14, 7);
+    g.fillStyle(0xc62828);
+    g.fillRect(cx - 13, cy + 33, 12, 2);
+    g.fillRect(cx + 1,  cy + 33, 12, 2);
+    // Torso — gangster: dark navy jacket; normal: dark grey
+    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
+    g.fillEllipse(cx, cy - 2, 32, 30);
+    // Jacket lapel V — slightly darker than torso
+    g.fillStyle(opt.gangster ? 0x05081a : 0x141414);
+    g.fillTriangle(cx - 8, cy - 14, cx + 8, cy - 14, cx, cy + 4);
+    // Gold chain — only in gangster mode (gold accent, not yellow body)
+    if (opt.gangster) {
+      g.fillStyle(0xffd700);
+      g.fillCircle(cx - 5, cy - 8, 1.5);
+      g.fillCircle(cx - 2, cy - 6, 1.5);
+      g.fillCircle(cx + 2, cy - 6, 1.5);
+      g.fillCircle(cx + 5, cy - 8, 1.5);
+      g.fillCircle(cx, cy - 4, 3);
+    }
+    // Left arm (right arm is drawn separately as the rotating gun arm overlay)
+    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
+    g.fillEllipse(cx - 16, cy - 2, 8, 22);
+    // Left hand
+    g.fillStyle(0xf0c49a);
+    g.fillCircle(cx - 16, cy + 10, 3);
+    // Right arm — small stub only (the rotating arm graphic covers this)
+    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
+    g.fillEllipse(cx + 14, cy - 4, 8, 14);
+    // Neck
+    g.fillStyle(0xf0c49a);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
+    // Head — rounded, slightly larger for visible features
     g.fillStyle(0xf0c49a);
     g.fillCircle(cx, cy - 22, 10);
-    // Curly dark brown / dirty blonde hair — stacked circles
+    // v5: ONE curly wavy hair blob — irregular asymmetric shape, brown/blonde
     g.fillStyle(0x6b4a28);
-    g.fillCircle(cx - 6, cy - 28, 5);
-    g.fillCircle(cx + 6, cy - 28, 5);
-    g.fillCircle(cx,     cy - 32, 5);
-    g.fillCircle(cx - 9, cy - 24, 4);
-    g.fillCircle(cx + 9, cy - 24, 4);
-    g.fillStyle(0xd4a564);
-    g.fillCircle(cx - 2, cy - 30, 3);
-    g.fillCircle(cx + 4, cy - 29, 3);
-    // Eyes / sunglasses
+    // Main mass on top of head
+    g.fillEllipse(cx, cy - 30, 24, 11);
+    // One curly tuft offset right (gives the wavy/messy curl)
+    g.fillEllipse(cx + 5, cy - 33, 10, 7);
+    // One small curl front
+    g.fillEllipse(cx - 8, cy - 28, 6, 5);
+    // Eyes / sunglasses (gangster wears shades — no yellow anywhere)
     if (opt.gangster) {
+      // Black aviator-style shades across the eyes
       g.fillStyle(0x000000);
-      g.fillRect(cx - 9, cy - 22, 18, 4);
-      // lens glint
+      g.fillRect(cx - 9, cy - 23, 18, 5);
+      // Bridge highlight
+      g.fillStyle(0x444444);
+      g.fillRect(cx - 1, cy - 22, 2, 1);
+      // Lens reflections (white pinpoint, not yellow)
       g.fillStyle(0xffffff);
-      g.fillRect(cx - 6, cy - 22, 1, 1);
-      g.fillRect(cx + 4, cy - 22, 1, 1);
+      g.fillRect(cx - 6, cy - 22, 2, 1);
+      g.fillRect(cx + 4, cy - 22, 2, 1);
     } else {
+      g.fillStyle(0xffffff);
+      g.fillCircle(cx - 4, cy - 22, 1.6);
+      g.fillCircle(cx + 4, cy - 22, 1.6);
       g.fillStyle(0x000000);
-      g.fillRect(cx - 4, cy - 22, 2, 2);
-      g.fillRect(cx + 2, cy - 22, 2, 2);
+      g.fillCircle(cx - 4, cy - 22, 0.9);
+      g.fillCircle(cx + 4, cy - 22, 0.9);
     }
+    // Mouth
+    g.fillStyle(0x6a3320);
+    g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
   function drawCallum(g, cx, cy) {
-    // Baggy joggers
+    // Joggers
     g.fillStyle(0x2a2a2a);
-    g.fillRect(cx - 10, cy + 5, 20, 28);
-    // Red/white adidas gazelles
+    g.fillEllipse(cx - 6, cy + 18, 11, 28);
+    g.fillEllipse(cx + 6, cy + 18, 11, 28);
+    // Red/white gazelles
     g.fillStyle(0xcc2222);
-    g.fillRect(cx - 12, cy + 30, 11, 5);
-    g.fillRect(cx + 1,  cy + 30, 11, 5);
+    g.fillEllipse(cx - 6, cy + 32, 13, 6);
+    g.fillEllipse(cx + 6, cy + 32, 13, 6);
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 12, cy + 34, 11, 2);
-    g.fillRect(cx + 1,  cy + 34, 11, 2);
-    // North Face quarter-zip (black)
+    g.fillRect(cx - 12, cy + 33, 12, 2);
+    g.fillRect(cx,      cy + 33, 12, 2);
+    // North Face quarter-zip
     g.fillStyle(0x141414);
-    g.fillRect(cx - 13, cy - 14, 26, 26);
-    // White logo on chest
+    g.fillEllipse(cx, cy - 2, 28, 28);
+    // Arms
+    g.fillEllipse(cx - 14, cy - 2, 8, 22);
+    g.fillEllipse(cx + 14, cy - 2, 8, 22);
+    // Hands
+    g.fillStyle(0xe8c49a);
+    g.fillCircle(cx - 14, cy + 10, 3);
+    g.fillCircle(cx + 14, cy + 10, 3);
+    // Logo
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 3, cy - 10, 6, 2);
-    // Zipper
+    g.fillRect(cx - 3, cy - 8, 6, 1);
     g.fillStyle(0x3a3a3a);
     g.fillRect(cx, cy - 14, 1, 14);
-    // Skin — slightly warmer tan
+    // Neck
+    g.fillStyle(0xe8c49a);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
+    // Head
     g.fillStyle(0xe8c49a);
     g.fillCircle(cx, cy - 22, 9);
-    // Bowl cut (flat top, dark hair)
+    // Bowl cut
     g.fillStyle(0x0a0a0a);
-    g.fillRect(cx - 10, cy - 30, 20, 8);
-    g.fillRect(cx - 10, cy - 23, 2, 5);
-    g.fillRect(cx + 8,  cy - 23, 2, 5);
+    g.fillEllipse(cx, cy - 28, 20, 8);
     // Eyes
+    g.fillStyle(0xffffff);
+    g.fillCircle(cx - 4, cy - 22, 1.6);
+    g.fillCircle(cx + 4, cy - 22, 1.6);
     g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 22, 2, 1);
-    g.fillRect(cx + 2, cy - 22, 2, 1);
+    g.fillCircle(cx - 4, cy - 22, 0.9);
+    g.fillCircle(cx + 4, cy - 22, 0.9);
+    // Mouth
+    g.fillStyle(0x6a3320);
+    g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
   function drawFinley(g, cx, cy) {
-    // Cycling lycra — blue shorts / leggings
+    // Lycra
     g.fillStyle(0x1a5acc);
-    g.fillRect(cx - 9, cy + 5, 18, 28);
+    g.fillEllipse(cx - 6, cy + 18, 10, 28);
+    g.fillEllipse(cx + 6, cy + 18, 10, 28);
     // Cycling shoes
     g.fillStyle(0x101010);
-    g.fillRect(cx - 11, cy + 30, 9, 5);
-    g.fillRect(cx + 2,  cy + 30, 9, 5);
-    // GoreTex jacket (dark green)
+    g.fillEllipse(cx - 6, cy + 32, 11, 5);
+    g.fillEllipse(cx + 6, cy + 32, 11, 5);
+    // GoreTex jacket
     g.fillStyle(0x3a6a2a);
-    g.fillRect(cx - 13, cy - 14, 26, 26);
+    g.fillEllipse(cx, cy - 2, 28, 28);
+    // Arms
+    g.fillEllipse(cx - 14, cy - 2, 8, 22);
+    g.fillEllipse(cx + 14, cy - 2, 8, 22);
+    // Hands
+    g.fillStyle(0xf5d1ad);
+    g.fillCircle(cx - 14, cy + 10, 3);
+    g.fillCircle(cx + 14, cy + 10, 3);
     // Reflective strip
     g.fillStyle(0xf0f0f0);
-    g.fillRect(cx - 12, cy - 13, 24, 2);
-    // Skin
+    g.fillRect(cx - 13, cy - 7, 26, 2);
+    // Neck
+    g.fillStyle(0xf5d1ad);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
+    // Head
     g.fillStyle(0xf5d1ad);
     g.fillCircle(cx, cy - 22, 9);
     // Freckles
     g.fillStyle(0xaa7744);
     g.fillRect(cx - 4, cy - 20, 1, 1);
     g.fillRect(cx - 1, cy - 19, 1, 1);
-    g.fillRect(cx + 2, cy - 20, 1, 1);
-    g.fillRect(cx + 4, cy - 19, 1, 1);
-    g.fillRect(cx - 3, cy - 17, 1, 1);
+    g.fillRect(cx + 3, cy - 20, 1, 1);
+    g.fillRect(cx + 5, cy - 19, 1, 1);
     // French crop
     g.fillStyle(0x4a3a2a);
-    g.fillRect(cx - 9, cy - 30, 18, 5);
-    g.fillRect(cx - 9, cy - 25, 5, 3); // fringe
+    g.fillEllipse(cx, cy - 28, 18, 7);
     // Eyes
-    g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 22, 2, 1);
-    g.fillRect(cx + 2, cy - 22, 2, 1);
-  }
-
-  function drawDeclan(g, cx, cy) {
-    // Skinny build — narrow legs
-    g.fillStyle(0x0a0a0a);
-    g.fillRect(cx - 7, cy + 5, 14, 28);
-    // Jordans (red/black)
-    g.fillStyle(0xcc2222);
-    g.fillRect(cx - 9, cy + 30, 9, 5);
-    g.fillRect(cx + 1, cy + 30, 9, 5);
-    g.fillStyle(0x0a0a0a);
-    g.fillRect(cx - 9, cy + 34, 9, 2);
-    g.fillRect(cx + 1, cy + 34, 9, 2);
-    // Nike sweater (grey)
-    g.fillStyle(0x555555);
-    g.fillRect(cx - 11, cy - 14, 22, 26);
-    // Swoosh
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 4, cy - 8, 6, 1);
-    g.fillRect(cx + 2, cy - 9, 1, 1);
-    // Head — Simpsons yellow
-    g.fillStyle(0xffdd1a);
-    g.fillCircle(cx, cy - 22, 9);
-    // Short dark hair
-    g.fillStyle(0x3a2a1a);
-    g.fillRect(cx - 9, cy - 30, 18, 5);
-    // Eyes
+    g.fillCircle(cx - 4, cy - 22, 1.6);
+    g.fillCircle(cx + 4, cy - 22, 1.6);
     g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 22, 2, 1);
-    g.fillRect(cx + 2, cy - 22, 2, 1);
+    g.fillCircle(cx - 4, cy - 22, 0.9);
+    g.fillCircle(cx + 4, cy - 22, 0.9);
+    // Mouth
+    g.fillStyle(0x6a3320);
+    g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
-  function drawAaron(g, cx, cy) {
-    // Chinos (beige)
+  function drawDeclan(g, cx, cy, opt = {}) {
+    const skin = opt.frog ? 0x33aa33 : 0xffdd1a;
+    const stance = opt.frog ? 11 : 5;
+    // Legs — frog mode = wider squat, narrow otherwise
+    g.fillStyle(opt.frog ? 0x2a8a2a : 0x0a0a0a);
+    g.fillEllipse(cx - stance, cy + 18, opt.frog ? 14 : 9, 28);
+    g.fillEllipse(cx + stance, cy + 18, opt.frog ? 14 : 9, 28);
+    // Shoes / frog feet
+    g.fillStyle(opt.frog ? 0x33aa33 : 0xcc2222);
+    g.fillEllipse(cx - stance, cy + 32, opt.frog ? 16 : 10, 6);
+    g.fillEllipse(cx + stance, cy + 32, opt.frog ? 16 : 10, 6);
+    // Nike sweater (grey)
+    g.fillStyle(opt.frog ? 0x2a8a2a : 0x555555);
+    g.fillEllipse(cx, cy - 2, 24, 28);
+    // Arms
+    g.fillEllipse(cx - 13, cy - 2, 7, 20);
+    g.fillEllipse(cx + 13, cy - 2, 7, 20);
+    // Hands
+    g.fillStyle(skin);
+    g.fillCircle(cx - 13, cy + 9, 3);
+    g.fillCircle(cx + 13, cy + 9, 3);
+    // Swoosh
+    if (!opt.frog) {
+      g.fillStyle(0xffffff);
+      g.fillRect(cx - 3, cy - 8, 8, 1);
+    }
+    // Neck
+    g.fillStyle(skin);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
+    // Head
+    g.fillStyle(skin);
+    g.fillCircle(cx, cy - 22, 9);
+    if (opt.frog) {
+      // Bulging eyes on sides of head
+      g.fillStyle(0xffffff);
+      g.fillCircle(cx - 9, cy - 28, 5);
+      g.fillCircle(cx + 9, cy - 28, 5);
+      g.fillStyle(0x000000);
+      g.fillCircle(cx - 9, cy - 28, 2.5);
+      g.fillCircle(cx + 9, cy - 28, 2.5);
+      // Wide mouth
+      g.fillStyle(0x114411);
+      g.fillRect(cx - 6, cy - 18, 12, 2);
+    } else {
+      // Short dark hair
+      g.fillStyle(0x3a2a1a);
+      g.fillEllipse(cx, cy - 28, 18, 6);
+      // Eyes
+      g.fillStyle(0xffffff);
+      g.fillCircle(cx - 4, cy - 22, 1.6);
+      g.fillCircle(cx + 4, cy - 22, 1.6);
+      g.fillStyle(0x000000);
+      g.fillCircle(cx - 4, cy - 22, 0.9);
+      g.fillCircle(cx + 4, cy - 22, 0.9);
+      // Mouth
+      g.fillStyle(0x6a3320);
+      g.fillRect(cx - 3, cy - 17, 6, 1);
+    }
+  }
+
+  function drawAaron(g, cx, cy, opt = {}) {
+    if (opt.goblin) {
+      // Goblin morph — hunched 45deg, claws, beak, red eyes
+      // Translate / shift body forward
+      const skin = 0x6a8a5a;
+      // Squat legs (bent)
+      g.fillStyle(0x3a3a2a);
+      g.fillEllipse(cx - 8, cy + 22, 11, 18);
+      g.fillEllipse(cx + 8, cy + 22, 11, 18);
+      // Clawed feet
+      g.fillStyle(0x2a1a0a);
+      g.fillEllipse(cx - 8, cy + 32, 14, 6);
+      g.fillEllipse(cx + 8, cy + 32, 14, 6);
+      // Hunched torso — angled forward
+      g.fillStyle(0x556644);
+      g.fillEllipse(cx + 4, cy + 4, 30, 22);
+      // Long elongated arms dragging near ground
+      g.fillStyle(skin);
+      g.fillEllipse(cx + 14, cy + 14, 8, 26);
+      g.fillEllipse(cx - 8, cy + 14, 8, 26);
+      // Claws at ends
+      g.fillStyle(0x2a1a0a);
+      g.fillTriangle(cx + 14, cy + 26, cx + 10, cy + 30, cx + 18, cy + 30);
+      g.fillTriangle(cx - 8, cy + 26, cx - 12, cy + 30, cx - 4, cy + 30);
+      // Forward-jutting head
+      g.fillStyle(skin);
+      g.fillCircle(cx + 8, cy - 8, 10);
+      // Pointy beak nose
+      g.fillStyle(0x4a5a3a);
+      g.fillTriangle(cx + 16, cy - 8, cx + 24, cy - 6, cx + 16, cy - 4);
+      // Glowing red eyes
+      g.fillStyle(0xff2222);
+      g.fillCircle(cx + 5, cy - 10, 2);
+      g.fillCircle(cx + 11, cy - 10, 2);
+      // Pointy ears
+      g.fillStyle(skin);
+      g.fillTriangle(cx + 2, cy - 14, cx - 2, cy - 22, cx + 6, cy - 16);
+      // Jagged teeth
+      g.fillStyle(0xeeddaa);
+      g.fillTriangle(cx + 8, cy - 4, cx + 10, cy - 1, cx + 12, cy - 4);
+      return;
+    }
+    // Normal finance bro
     g.fillStyle(0xc9a97a);
-    g.fillRect(cx - 10, cy + 5, 20, 28);
-    // Loafers (brown)
+    g.fillEllipse(cx - 6, cy + 18, 12, 28);
+    g.fillEllipse(cx + 6, cy + 18, 12, 28);
+    // Brown loafers
     g.fillStyle(0x5a3a1a);
-    g.fillRect(cx - 12, cy + 30, 11, 5);
-    g.fillRect(cx + 1,  cy + 30, 11, 5);
+    g.fillEllipse(cx - 6, cy + 32, 13, 6);
+    g.fillEllipse(cx + 6, cy + 32, 13, 6);
     // Light-blue shirt
     g.fillStyle(0xaaccee);
-    g.fillRect(cx - 13, cy - 14, 26, 26);
+    g.fillEllipse(cx, cy - 2, 28, 28);
+    // Arms
+    g.fillEllipse(cx - 14, cy - 2, 8, 22);
+    g.fillEllipse(cx + 14, cy - 2, 8, 22);
+    // Hands
+    g.fillStyle(0xe8c090);
+    g.fillCircle(cx - 14, cy + 10, 3);
+    g.fillCircle(cx + 14, cy + 10, 3);
     // Button line
     g.fillStyle(0x1a1a1a);
     g.fillRect(cx, cy - 10, 1, 18);
-    // Collar
+    // Collar V
     g.fillStyle(0x8aaacc);
-    g.fillRect(cx - 6, cy - 14, 12, 3);
+    g.fillTriangle(cx - 6, cy - 14, cx + 6, cy - 14, cx, cy - 6);
+    // Neck
+    g.fillStyle(0xe8c090);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
     // Head
     g.fillStyle(0xe8c090);
     g.fillCircle(cx, cy - 22, 9);
-    // Slicked quiff (brown)
+    // Slicked quiff
     g.fillStyle(0x4a2a1a);
-    g.fillRect(cx - 8, cy - 28, 16, 6);
-    g.fillRect(cx - 3, cy - 32, 6, 4);
+    g.fillEllipse(cx, cy - 28, 16, 6);
+    g.fillEllipse(cx - 1, cy - 32, 7, 5);
     // Eyes
+    g.fillStyle(0xffffff);
+    g.fillCircle(cx - 4, cy - 22, 1.6);
+    g.fillCircle(cx + 4, cy - 22, 1.6);
     g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 22, 2, 1);
-    g.fillRect(cx + 2, cy - 22, 2, 1);
+    g.fillCircle(cx - 4, cy - 22, 0.9);
+    g.fillCircle(cx + 4, cy - 22, 0.9);
+    // Mouth
+    g.fillStyle(0x6a3320);
+    g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
   function drawCharlie(g, cx, cy) {
@@ -407,36 +556,50 @@
   // =============================================================================
   // ENEMY DRAW FUNCTIONS
   // =============================================================================
+  // v5: Chav — short, skinny, grey hoodie, dark cap. No more Adidas blue.
   function drawChav(g, cx, cy) {
-    // Light blue Adidas tracksuit bottoms
-    g.fillStyle(0x4a88cc);
-    g.fillRect(cx - 10, cy + 5, 20, 28);
-    // White three-stripe down legs
-    g.fillStyle(0xffffff);
-    g.fillRect(cx - 9, cy + 6, 2, 26);
-    g.fillRect(cx + 7, cy + 6, 2, 26);
-    // White trainers
-    g.fillRect(cx - 12, cy + 30, 11, 6);
-    g.fillRect(cx + 1,  cy + 30, 11, 6);
-    // Adidas top
-    g.fillStyle(0x4a88cc);
-    g.fillRect(cx - 13, cy - 14, 26, 26);
-    // Three stripes
-    g.fillStyle(0xffffff);
-    g.fillRect(cx - 13, cy - 12, 26, 2);
-    g.fillRect(cx - 13, cy - 7,  26, 2);
-    g.fillRect(cx - 13, cy - 2,  26, 2);
-    // Head
-    g.fillStyle(0xe0b88a);
-    g.fillCircle(cx, cy - 22, 8);
-    // Cap
-    g.fillStyle(0x141414);
-    g.fillRect(cx - 9, cy - 30, 18, 5);
-    g.fillRect(cx + 2, cy - 28, 10, 3);
-    // Angry eyes
+    // Skinny black jeans (narrow legs)
+    g.fillStyle(0x141418);
+    g.fillEllipse(cx - 5, cy + 18, 8, 28);
+    g.fillEllipse(cx + 5, cy + 18, 8, 28);
+    // Scuffed white trainers
+    g.fillStyle(0xeeeeee);
+    g.fillEllipse(cx - 5, cy + 32, 11, 5);
+    g.fillEllipse(cx + 5, cy + 32, 11, 5);
+    // Grey hoodie body — narrow torso (skinny build)
+    g.fillStyle(0x4a4a4e);
+    g.fillEllipse(cx, cy - 2, 22, 26);
+    // Pocket pouch line
+    g.fillStyle(0x2e2e32);
+    g.fillRect(cx - 7, cy + 4, 14, 1);
+    // Hoodie drawstring V at neck
+    g.fillStyle(0x2e2e32);
+    g.fillTriangle(cx - 5, cy - 14, cx + 5, cy - 14, cx, cy - 6);
+    // Skinny arms
+    g.fillStyle(0x4a4a4e);
+    g.fillEllipse(cx - 12, cy - 2, 6, 20);
+    g.fillEllipse(cx + 12, cy - 2, 6, 20);
+    // Hands
+    g.fillStyle(0xd6b088);
+    g.fillCircle(cx - 12, cy + 9, 2.5);
+    g.fillCircle(cx + 12, cy + 9, 2.5);
+    // Head — small, pinched
+    g.fillStyle(0xd6b088);
+    g.fillCircle(cx, cy - 20, 7);
+    // Dark cap (peak forward)
+    g.fillStyle(0x0a0a0a);
+    g.fillEllipse(cx, cy - 26, 16, 5);
+    g.fillRect(cx, cy - 27, 12, 3);
+    // Cap shadow on forehead
+    g.fillStyle(0x6a4a30);
+    g.fillRect(cx - 6, cy - 22, 12, 1);
+    // Angry red eyes (peek out from under cap shadow)
     g.fillStyle(0xff3333);
-    g.fillRect(cx - 4, cy - 22, 2, 1);
-    g.fillRect(cx + 2, cy - 22, 2, 1);
+    g.fillRect(cx - 4, cy - 21, 2, 1);
+    g.fillRect(cx + 2, cy - 21, 2, 1);
+    // Mouth — sneer
+    g.fillStyle(0x3a1a10);
+    g.fillRect(cx - 2, cy - 16, 4, 1);
   }
 
   function drawBouncer(g, cx, cy) {
@@ -725,7 +888,7 @@
 
     drawFooter() {
       this.add.text(GW / 2, GH - 22,
-        'WASD MOVE  ·  SPACE JUMP (DOUBLE-TAP IN AIR TO DIVE)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  CLICK SHOOT  ·  E POWERUP  ·  F TONGUE',
+        'WASD MOVE  ·  SPACE JUMP (DOUBLE-TAP IN AIR TO DIVE)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  MOUSE AIM + CLICK SHOOT  ·  E POWERUP  ·  F TONGUE',
         { fontFamily: 'monospace', fontSize: '12px', color: '#665050', letterSpacing: 1 }
       ).setOrigin(0.5);
     }
@@ -828,21 +991,43 @@
       makeCharTexture(this, 'enemy_bouncer', drawBouncer);
       makeCharTexture(this, 'enemy_hoodie',  drawHoodie);
 
-      // Tongue projectile (frog mode) — pink horizontal blob
+      // Tongue projectile (Frog mode) — v5: bright green horizontal rectangle
       const tg = this.make.graphics({ add: false });
-      tg.fillStyle(0xff66cc, 1); tg.fillRect(0, 4, 24, 6);
-      tg.fillStyle(0xffaaee, 1); tg.fillRect(20, 2, 8, 10);
-      tg.generateTexture('tongue', 28, 14);
+      // Outer glow halo
+      tg.fillStyle(0x66ff66, 0.35); tg.fillRect(0, 1, 32, 12);
+      // Main body
+      tg.fillStyle(0x33cc33, 1);    tg.fillRect(0, 4, 30, 6);
+      // Bright tip
+      tg.fillStyle(0x88ff88, 1);    tg.fillRect(24, 2, 8, 10);
+      tg.generateTexture('tongue', 32, 14);
       tg.destroy();
 
-      // Bullet texture — thin yellow rectangle with trail glow baked in
+      // v5: Player bullet — bright glowing white/yellow circle with halo
       const b = this.make.graphics({ add: false });
-      b.fillStyle(0xffee77, 1);
-      b.fillRect(0, 3, 14, 2);
-      b.fillStyle(0xffaa22, 0.9);
-      b.fillRect(14, 2, 6, 4);
-      b.generateTexture('bullet', 20, 8);
+      b.fillStyle(0xffee55, 0.25); b.fillCircle(8, 8, 8);   // outer halo
+      b.fillStyle(0xffee55, 0.6);  b.fillCircle(8, 8, 5);   // mid glow
+      b.fillStyle(0xffffff, 1);    b.fillCircle(8, 8, 3);   // bright core
+      b.generateTexture('bullet', 16, 16);
       b.destroy();
+
+      // v5: Enemy bullet — bright glowing red circle with halo
+      const eb = this.make.graphics({ add: false });
+      eb.fillStyle(0xff2233, 0.25); eb.fillCircle(8, 8, 8);  // outer halo
+      eb.fillStyle(0xff2233, 0.6);  eb.fillCircle(8, 8, 5);  // mid glow
+      eb.fillStyle(0xffaaaa, 1);    eb.fillCircle(8, 8, 3);  // bright core
+      eb.generateTexture('enemy_bullet', 16, 16);
+      eb.destroy();
+
+      // v5: Bullet trail particle — yellow for player, red for enemy
+      const trailY = this.make.graphics({ add: false });
+      trailY.fillStyle(0xffee55, 1); trailY.fillCircle(2, 2, 2);
+      trailY.generateTexture('trail_yellow', 4, 4);
+      trailY.destroy();
+
+      const trailR = this.make.graphics({ add: false });
+      trailR.fillStyle(0xff3344, 1); trailR.fillCircle(2, 2, 2);
+      trailR.generateTexture('trail_red', 4, 4);
+      trailR.destroy();
 
       // Powerup orb
       const p = this.make.graphics({ add: false });
@@ -988,60 +1173,80 @@
       }
     }
 
+    // v5: Neon signs are mounted as physical boxes bolted to building walls,
+    // not floating in the sky. Each sign gets a back-plate, four corner bolts,
+    // and a single small ground light pool (the duplicate large pool in
+    // createGround has also been removed).
     createNeonSigns() {
-      // Neon signs — drawn at full scroll factor (1.0, same as world)
-      // Each sign: glow aura + outlined rectangle + text
       this.neonLightPools = [];
 
       NEON_SIGNS.forEach(sign => {
         const col = sign.color;
-        // Sign box
-        const w = sign.text.length * 14 + 20;
-        const h = 40;
+        const w = sign.text.length * 14 + 24;
+        const h = 42;
         const boxX = sign.x, boxY = sign.y;
 
-        // Glow halo behind
+        // Soft glow halo behind the sign (against the brick)
         const halo = this.add.graphics();
-        halo.fillStyle(col, 0.18);
-        halo.fillCircle(boxX, boxY + h / 2, 80);
-        halo.fillStyle(col, 0.08);
-        halo.fillCircle(boxX, boxY + h / 2, 130);
+        halo.fillStyle(col, 0.20);
+        halo.fillCircle(boxX, boxY + h / 2, 70);
+        halo.fillStyle(col, 0.10);
+        halo.fillCircle(boxX, boxY + h / 2, 120);
 
-        // Sign frame
+        // Mount plate — slightly larger than the frame, dark metal
+        const plate = this.add.graphics();
+        plate.fillStyle(0x1a1a1e, 1);
+        plate.fillRect(boxX - w / 2 - 4, boxY - 4, w + 8, h + 8);
+        // Plate shadow strip (suggests it stands proud of the wall)
+        plate.fillStyle(0x000000, 0.55);
+        plate.fillRect(boxX - w / 2 - 6, boxY + h + 4, w + 12, 3);
+
+        // Sign body
         const frame = this.add.graphics();
-        frame.fillStyle(0x0a0a0a, 1);
+        frame.fillStyle(0x070708, 1);
         frame.fillRect(boxX - w / 2, boxY, w, h);
         frame.lineStyle(2, col, 1);
         frame.strokeRect(boxX - w / 2, boxY, w, h);
 
-        // Text (with glow)
+        // Four corner bolts holding the sign to the wall
+        const bolts = this.add.graphics();
+        bolts.fillStyle(0x666666, 1);
+        const bx1 = boxX - w / 2 - 1, bx2 = boxX + w / 2 + 1;
+        const by1 = boxY - 1,         by2 = boxY + h + 1;
+        [[bx1, by1], [bx2, by1], [bx1, by2], [bx2, by2]].forEach(([x, y]) => {
+          bolts.fillCircle(x, y, 2.2);
+          bolts.fillStyle(0x222222, 1);
+          bolts.fillCircle(x, y, 0.8);
+          bolts.fillStyle(0x666666, 1);
+        });
+
+        // Glowing text — coloured glow + bright white core
+        const colHex = '#' + col.toString(16).padStart(6, '0');
         const txtGlow = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
-          color: '#' + col.toString(16).padStart(6, '0'),
-          stroke: '#' + col.toString(16).padStart(6, '0'),
-          strokeThickness: 8,
-        }).setOrigin(0.5).setAlpha(0.35);
+          color: colHex, stroke: colHex, strokeThickness: 8,
+        }).setOrigin(0.5).setAlpha(0.45);
 
         const txt = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
           color: '#ffffff',
         }).setOrigin(0.5);
 
-        // Subtle flicker
+        // Subtle flicker on the bright elements (not on the bolts/plate)
         this.tweens.add({
-          targets: [txt, txtGlow, frame, halo],
+          targets: [txt, txtGlow, halo],
           alpha: { from: 1, to: 0.85 },
           duration: 90 + Math.random() * 100,
           yoyo: true, repeat: -1,
         });
 
-        // Light pool on the ground beneath the sign
+        // v5: SINGLE small ground light pool beneath each sign (was duplicated)
         const pool = this.add.graphics();
-        pool.fillStyle(col, 0.35);
-        pool.fillEllipse(boxX, GROUND_Y - 2, 220, 30);
-        pool.fillStyle(col, 0.15);
-        pool.fillEllipse(boxX, GROUND_Y - 2, 300, 45);
-        pool.setDepth(-1); // under platforms / enemies
+        pool.fillStyle(col, 0.30);
+        pool.fillEllipse(boxX, GROUND_Y - 2, 130, 18);
+        pool.fillStyle(col, 0.12);
+        pool.fillEllipse(boxX, GROUND_Y - 2, 200, 28);
+        pool.setDepth(-1);
         this.neonLightPools.push({ g: pool, baseX: boxX, color: col });
       });
     }
@@ -1061,16 +1266,8 @@
       gnd.fillStyle(0x6a8abf, 0.04);
       gnd.fillRect(0, GROUND_Y + 16, WORLD_W, 20);
 
-      // Soft elliptical light pools on the wet street under each neon sign
-      NEON_SIGNS.forEach(s => {
-        const pool = this.add.graphics();
-        pool.fillStyle(s.color, 0.28);
-        pool.fillEllipse(s.x, GROUND_Y + 6, 200, 22);
-        pool.fillStyle(s.color, 0.16);
-        pool.fillEllipse(s.x, GROUND_Y + 10, 300, 38);
-        pool.fillStyle(s.color, 0.08);
-        pool.fillEllipse(s.x, GROUND_Y + 14, 420, 56);
-      });
+      // v5: Removed the second large neon ground pool — single small pool
+      // is now drawn in createNeonSigns() above for a less floaty look.
 
       // Physical ground body (invisible collider)
       this.groundBody = this.physics.add.staticGroup();
@@ -1131,6 +1328,39 @@
         isCrouching: false,
         invincibleUntil: 0,
       };
+
+      // v5 Connor arm/gun overlay — visible arm extending from the body
+      // holding a pistol. Drawn into a Graphics object once, then positioned
+      // and rotated each frame in updatePlayer to follow the mouse cursor.
+      // Only created (and displayed) when the selected character is Connor.
+      if (charId === 'connor') {
+        this.connorArm = this.add.graphics().setDepth(11);
+        this.drawConnorArm(this.connorArm);
+      }
+    }
+
+    // v5: Draw Connor's right arm + pistol so it points to the right (+x),
+    // ready to be rotated around (0,0) to aim at the mouse cursor.
+    drawConnorArm(g) {
+      g.clear();
+      // Sleeve (jacket sleeve) — extending forward from shoulder
+      g.fillStyle(0x262626, 1);
+      g.fillRect(0, -4, 22, 8);
+      // Hand (skin)
+      g.fillStyle(0xf0c49a, 1);
+      g.fillCircle(22, 0, 4);
+      // Pistol body — black with subtle highlight
+      g.fillStyle(0x111111, 1);
+      g.fillRect(22, -3, 16, 6);
+      // Pistol slide top
+      g.fillStyle(0x2a2a2a, 1);
+      g.fillRect(22, -4, 16, 2);
+      // Trigger guard ring
+      g.fillStyle(0x1a1a1a, 1);
+      g.fillRect(26, 3, 6, 4);
+      // Barrel tip — small light dot
+      g.fillStyle(0x444444, 1);
+      g.fillRect(38, -1, 2, 2);
     }
 
     createEnemies() {
@@ -1140,18 +1370,29 @@
       ENEMY_SPAWNS.forEach(spawn => this.spawnEnemy(spawn.x, spawn.type));
     }
 
-    // Spawn a single enemy at x of the given type, register its state
+    // Spawn a single enemy at x of the given type, register its state.
+    // v5: spawn slightly above ground (not exactly on it) so the body settles
+    // cleanly via gravity — this kills the ground-vibration glitch where
+    // enemies (especially the scaled-up bouncer) jittered un-shootably along
+    // the floor. Body sizing is also normalised: the bouncer keeps a single
+    // body size and uses scale only for visuals, with offset recomputed.
     spawnEnemy(x, type) {
       const stats = ENEMY_STATS[type];
       const tex = 'enemy_' + type;
-      const e = this.enemies.create(x, GROUND_Y - 40, tex);
+      const e = this.enemies.create(x, GROUND_Y - 80, tex); // spawn higher
       e.setCollideWorldBounds(true);
       e.body.setSize(28, 56);
       e.body.setOffset(11, 12);
       if (type === 'bouncer') {
         e.setScale(1.2);
-        e.body.setSize(32, 64); e.body.setOffset(12, 12);
+        // After scale, sprite is 60x86.4. Body must be re-set in unscaled
+        // coords so physics doesn't drift — keep body 28x56 but bump offset
+        // so the foot of the body lines up with the foot of the scaled sprite.
+        e.body.setSize(28, 56);
+        e.body.setOffset(11, 12);
       }
+      // Drag prevents micro-vibration when enemy stops at a wall edge
+      e.body.setDragX(200);
       this.enemyData.set(e, {
         type,
         hp: stats.hp, maxHp: stats.hp,
@@ -1247,6 +1488,44 @@
         lifespan: 200,
         emitting: false,
       }).setDepth(25);
+
+      // v5: Player muzzle flash — large bright yellow burst
+      this.muzzleFX = this.add.particles(0, 0, 'trail_yellow', {
+        speed: { min: 60, max: 220 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 2.2, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 160,
+        emitting: false,
+      }).setDepth(26);
+
+      // v5: Enemy muzzle flash — red burst
+      this.enemyMuzzleFX = this.add.particles(0, 0, 'trail_red', {
+        speed: { min: 50, max: 180 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.8, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 150,
+        emitting: false,
+      }).setDepth(26);
+
+      // v5: Player bullet trail — short yellow streak following each bullet
+      this.bulletTrailFX = this.add.particles(0, 0, 'trail_yellow', {
+        speed: 0,
+        scale: { start: 1.4, end: 0 },
+        alpha: { start: 0.8, end: 0 },
+        lifespan: 220,
+        emitting: false,
+      }).setDepth(24);
+
+      // v5: Enemy bullet trail — short red streak
+      this.enemyTrailFX = this.add.particles(0, 0, 'trail_red', {
+        speed: 0,
+        scale: { start: 1.4, end: 0 },
+        alpha: { start: 0.8, end: 0 },
+        lifespan: 220,
+        emitting: false,
+      }).setDepth(24);
     }
 
     // -----------------------------------------------------------------------
@@ -1318,46 +1597,38 @@
 
       // Controls hint (bottom right)
       this.hud.add(this.add.text(GW - 12, GH - 10,
-        'WASD · SPACE · S+DIR SLIDE · SHIFT BULLET TIME · CLICK SHOOT · E POWERUP · F TONGUE',
+        'WASD · SPACE · S+DIR SLIDE · SHIFT BULLET TIME · MOUSE AIM + CLICK SHOOT · E POWERUP · F TONGUE',
         { fontFamily: 'monospace', fontSize: '10px', color: '#554444' }
       ).setOrigin(1, 1));
     }
 
     // -----------------------------------------------------------------------
+    // v5: Bullet time overlay — NO greyscale, NO full-screen blue tint.
+    // Just a dark blue edge vignette so the world keeps full colour.
     createBulletTimeOverlay() {
-      // Desaturation overlay — pulls colour out of everything below it
-      this.desatOverlay = this.add.rectangle(0, 0, GW, GH, 0x888888)
-        .setOrigin(0, 0).setScrollFactor(0).setDepth(100)
-        .setBlendMode(Phaser.BlendModes.SATURATION).setAlpha(0);
-
-      // Blue tint overlay
-      this.blueOverlay = this.add.rectangle(0, 0, GW, GH, 0x1a3a88)
-        .setOrigin(0, 0).setScrollFactor(0).setDepth(101).setAlpha(0);
-
-      // Vignette — a big radial-ish graphics shape
+      // Dark blue edge vignette only (full colour preserved in centre)
       this.vignette = this.add.graphics().setScrollFactor(0).setDepth(102);
       this.vignette.setAlpha(0);
-      // Draw vignette into it once
       this.redrawVignette(this.vignette);
     }
 
     redrawVignette(g) {
       g.clear();
-      // Dark corners — simulate radial gradient with stacked transparent rings
+      // Dark blue rings stacking inward — heaviest at edges
       const cx = GW / 2, cy = GH / 2;
       for (let i = 0; i < 40; i++) {
         const t = i / 40;
-        const r = 160 + t * 700;
-        const a = 0.035 + t * 0.04;
-        g.lineStyle(24, 0x000014, a);
+        const r = 200 + t * 700;
+        const a = 0.04 + t * 0.05;
+        g.lineStyle(28, 0x0a1a44, a);
         g.strokeEllipse(cx, cy, r * 1.6, r);
       }
-      // Darker screen edge
-      g.fillStyle(0x000010, 0.55);
-      g.fillRect(0, 0, GW, 40);
-      g.fillRect(0, GH - 40, GW, 40);
-      g.fillRect(0, 0, 40, GH);
-      g.fillRect(GW - 40, 0, 40, GH);
+      // Solid dark blue screen-edge bands for a clean cinematic vignette
+      g.fillStyle(0x051030, 0.7);
+      g.fillRect(0, 0, GW, 50);
+      g.fillRect(0, GH - 50, GW, 50);
+      g.fillRect(0, 0, 50, GH);
+      g.fillRect(GW - 50, 0, 50, GH);
     }
 
     // -----------------------------------------------------------------------
@@ -1389,9 +1660,11 @@
     }
 
     setupCollisions() {
-      // Player vs ground/platforms
+      // Player vs ground/platforms — keep handle to platform collider so the
+      // Charlie Fatter powerup can disable it (Charlie can't reach platforms).
       this.physics.add.collider(this.player, this.groundBody);
-      this.physics.add.collider(this.player, this.platforms);
+      this.playerPlatformCollider =
+        this.physics.add.collider(this.player, this.platforms);
 
       // Enemies vs ground/platforms
       this.physics.add.collider(this.enemies, this.groundBody);
@@ -1437,6 +1710,15 @@
           const dir = Math.sign(enemy.x - player.x) || 1;
           this.killEnemy(enemy, dir);
           this.showFloatingText(enemy.x, enemy.y - 30, 'MINE!', '#88ff44');
+          return;
+        }
+
+        // v5 Finley Guinness Hero — contact kills enemies (player is
+        // already invincible while powerup is active, so no damage taken)
+        if (this.powerupActive && this.powerupKind === 'finley') {
+          const dir = Math.sign(enemy.x - player.x) || 1;
+          this.killEnemy(enemy, dir);
+          this.showFloatingText(enemy.x, enemy.y - 30, 'CHEERS!', '#ffdd33');
           return;
         }
 
@@ -1528,15 +1810,11 @@
         if (this.bulletTimeEnergy > 100) this.bulletTimeEnergy = 100;
       }
 
-      // Animate overlay alphas toward target
-      const targetBlue = this.bulletTimeActive ? 0.22 : 0;
-      const targetDesat = this.bulletTimeActive ? 0.85 : 0;
-      const targetVig = this.bulletTimeActive ? 0.95 : 0;
+      // v5: only animate the dark-blue edge vignette — full colour preserved
+      const targetVig = this.bulletTimeActive ? 0.92 : 0;
       const lerp = (a, b, t) => a + (b - a) * t;
       const k = Math.min(1, delta / 160);
-      this.blueOverlay.alpha  = lerp(this.blueOverlay.alpha,  targetBlue,  k);
-      this.desatOverlay.alpha = lerp(this.desatOverlay.alpha, targetDesat, k);
-      this.vignette.alpha     = lerp(this.vignette.alpha,     targetVig,   k);
+      this.vignette.alpha = lerp(this.vignette.alpha, targetVig, k);
     }
 
     enterBulletTime() {
@@ -1610,12 +1888,12 @@
       let speedMul = 1;
       if (this.powerupActive) {
         switch (this.powerupKind) {
-          case 'connor':  speedMul = 1.5; break; // Gangster +50%
-          case 'callum':  speedMul = 2.0; break; // Chow double speed
-          case 'finley':  speedMul = 1.0; break; // Guinness — invincible, normal speed
-          case 'declan':  speedMul = 1.0; break; // Frog — jump bonus only
-          case 'aaron':   speedMul = 2.0; break; // Goblin — double speed
-          case 'charlie': speedMul = 0.55; break; // Fatter — sluggish
+          case 'connor':  speedMul = 1.5; break;  // Gangster +50%
+          case 'callum':  speedMul = 2.0; break;  // Chow double speed
+          case 'finley':  speedMul = 0.7; break;  // v5: Guinness Hero — slower
+          case 'declan':  speedMul = 1.0; break;  // Frog — jump bonus only
+          case 'aaron':   speedMul = 2.0; break;  // Goblin — double speed
+          case 'charlie': speedMul = 0.5; break;  // Fatter — waddle slowly
         }
       }
       if (ps.isCrouching)     speedMul = 0.45;
@@ -1685,6 +1963,28 @@
       // After a dive, restore rotation once on ground
       if (onGround && !ps.isSliding && this.player.rotation !== 0) {
         this.player.setRotation(0);
+      }
+
+      // v5 Charlie Fatter: clamp to ground level — even if knocked up, snap
+      // back down so he can't reach platforms.
+      if (this.powerupActive && this.powerupKind === 'charlie') {
+        if (this.player.y < GROUND_Y - 50) {
+          this.player.y = GROUND_Y - 50;
+          this.player.body.velocity.y = Math.max(0, this.player.body.velocity.y);
+        }
+      }
+
+      // v5 Connor: position + rotate the visible gun arm to follow the mouse
+      if (this.connorArm && this.selectedCharacter === 'connor') {
+        const ptr = this.input.activePointer;
+        const wx = ptr.worldX, wy = ptr.worldY;
+        const ang = Math.atan2(wy - this.player.y, wx - this.player.x);
+        this.connorArm.x = this.player.x;
+        this.connorArm.y = this.player.y - 4;
+        this.connorArm.rotation = ang;
+        this.connorArm.setVisible(true);
+      } else if (this.connorArm) {
+        this.connorArm.setVisible(false);
       }
 
       // Powerup activation
@@ -1786,26 +2086,37 @@
     enemyShoot(enemy, dir) {
       const bx = enemy.x + dir * 22;
       const by = enemy.y - 4;
-      const b = this.enemyBullets.create(bx, by, 'bullet');
+      // v5: enemy bullets use the dedicated red glowing texture
+      const b = this.enemyBullets.create(bx, by, 'enemy_bullet');
       b.setVelocity(dir * 500, -40 + (Math.random() - 0.5) * 40);
       b.setGravityY(BULLET_GRAVITY);
-      b.body.setSize(14, 4);
-      b.setFlipX(dir < 0);
-      this.sparkFX.emitParticleAt(bx, by, 2);
+      b.body.setSize(10, 10).setOffset(3, 3);
+      b.isEnemy = true;
+      // Red muzzle spark
+      this.enemyMuzzleFX.emitParticleAt(bx, by, 4);
       // Kill after 2s
       this.time.delayedCall(2200, () => { if (b.active) b.destroy(); });
     }
 
     // -----------------------------------------------------------------------
+    // v5: emit a short coloured trail behind every bullet each frame.
+    // In bullet time we double the trail count so streaks read as longer.
     updateBullets() {
-      // Remove bullets that leave world bounds
-      const cleanup = (b) => {
+      const trailMul = this.bulletTimeActive ? 2 : 1;
+      this.bullets.getChildren().forEach(b => {
         if (b.x < -50 || b.x > WORLD_W + 50 || b.y > GH + 100) {
-          b.destroy();
+          b.destroy(); return;
         }
-      };
-      this.bullets.getChildren().forEach(cleanup);
-      this.enemyBullets.getChildren().forEach(cleanup);
+        if (!b.isTongue) {
+          this.bulletTrailFX.emitParticleAt(b.x, b.y, trailMul);
+        }
+      });
+      this.enemyBullets.getChildren().forEach(b => {
+        if (b.x < -50 || b.x > WORLD_W + 50 || b.y > GH + 100) {
+          b.destroy(); return;
+        }
+        this.enemyTrailFX.emitParticleAt(b.x, b.y, trailMul);
+      });
     }
 
     // -----------------------------------------------------------------------
@@ -1877,7 +2188,8 @@
           break;
         }
         case 'finley': {
-          // Keep invincibility refreshed and reposition pint + golden glow
+          // v5: Keep invincibility refreshed; reposition pint, glow, and the
+          // floating "INVINCIBLE" text above Finley's head each frame.
           this.playerState.invincibleUntil = this.time.now + 200;
           const facing = this.playerState.facing || 1;
           if (this.finleyPint) {
@@ -1887,7 +2199,12 @@
           if (this.finleyGlow) {
             this.finleyGlow.x = px;
             this.finleyGlow.y = py;
-            this.finleyGlow.alpha = 0.55 + 0.35 * Math.sin(this.time.now / 90);
+            this.finleyGlow.alpha = 0.65 + 0.35 * Math.sin(this.time.now / 90);
+          }
+          if (this.finleyInvText) {
+            this.finleyInvText.x = px;
+            this.finleyInvText.y = py - 56;
+            this.finleyInvText.alpha = 0.7 + 0.3 * Math.sin(this.time.now / 140);
           }
           break;
         }
@@ -1911,17 +2228,21 @@
       this.powerupTimer = POWERUP_DURATION[charId] || 6000;
       this.powerupMax = this.powerupTimer;
 
-      // Common activation flair
+      // v5 Common activation flair: bright flash + zoom punch + a big
+      // "POWERUP!" text that pops above the player and fades.
       this.cameras.main.flash(300, 255, 220, 80);
       this.cameras.main.zoomTo(1.06, 120, 'Sine.easeOut');
       this.time.delayedCall(150, () => this.cameras.main.zoomTo(1.0, 180));
+      this.showFloatingText(this.player.x, this.player.y - 80,
+        'POWERUP!', '#ffee44');
 
       // Per-character visuals
       switch (charId) {
         case 'connor':
-          // Sunglasses variant + golden tint
+          // v5 Gangster Mode: sunglasses + dark navy outfit + gold chain.
+          // No yellow tint — colour comes entirely from the texture itself.
           this.player.setTexture('player_connor_gangster');
-          this.player.setTint(0xffdd99);
+          this.player.clearTint();
           break;
         case 'callum':
           // Red tint, fast aura — auto-melee handled per-frame
@@ -1930,16 +2251,28 @@
           this.showFloatingText(this.player.x, this.player.y - 60, 'CHOW!', '#ffaa22');
           break;
         case 'finley':
-          // Golden glow, pint of Guinness, invincibility
+          // v5 Guinness Hero: bright gold glow, slower movement, contact-
+          // kills enemies (handled in player-enemy overlap), permanent
+          // invincibility for the powerup duration, "INVINCIBLE" text above
+          // the head.
           this.player.setTint(0xffe4a8);
           this.playerState.invincibleUntil = this.time.now + this.powerupTimer + 200;
+          // Brighter, larger gold halo
           this.finleyGlow = this.add.graphics().setDepth(8);
-          this.finleyGlow.fillStyle(0xffdd44, 0.35); this.finleyGlow.fillCircle(0, 0, 50);
-          this.finleyGlow.fillStyle(0xffeeaa, 0.20); this.finleyGlow.fillCircle(0, 0, 80);
+          this.finleyGlow.fillStyle(0xffdd44, 0.55); this.finleyGlow.fillCircle(0, 0, 60);
+          this.finleyGlow.fillStyle(0xffeeaa, 0.30); this.finleyGlow.fillCircle(0, 0, 90);
+          this.finleyGlow.fillStyle(0xfff8c0, 0.18); this.finleyGlow.fillCircle(0, 0, 130);
+          // Pint of Guinness in hand
           this.finleyPint = this.add.graphics().setDepth(11);
           this.finleyPint.fillStyle(0x3a1a08, 1); this.finleyPint.fillRect(-5, -8, 10, 14);
           this.finleyPint.fillStyle(0xead8ad, 1); this.finleyPint.fillRect(-5, -8, 10, 3);
           this.finleyPint.fillStyle(0x1a0d04, 1); this.finleyPint.fillRect(-5, 5, 10, 1);
+          // "INVINCIBLE" text floating above the head
+          this.finleyInvText = this.add.text(0, 0, 'INVINCIBLE', {
+            fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '18px',
+            color: '#ffdd33', stroke: '#553300', strokeThickness: 3,
+            letterSpacing: 2,
+          }).setOrigin(0.5).setDepth(12);
           break;
         case 'declan':
           // Frog green
@@ -1952,10 +2285,16 @@
           this.showFloatingText(this.player.x, this.player.y - 60, 'MINE!', '#88ff44');
           break;
         case 'charlie':
-          // Fatter: 2x scale, immune
+          // v5 Fatter: 2.5x width, 1.8x height — disable platform collision
+          // so Charlie stays grounded and can't reach platforms. Invincible
+          // for the whole duration.
           this.player.setTint(0xffccaa);
-          this.player.setScale(2, 2);
+          this.player.setScale(2.5, 1.8);
           this.playerState.invincibleUntil = this.time.now + this.powerupTimer + 200;
+          // Disable the platform collider so Charlie ignores them entirely
+          if (this.playerPlatformCollider) {
+            this.playerPlatformCollider.active = false;
+          }
           break;
       }
     }
@@ -1977,10 +2316,17 @@
           break;
         case 'charlie':
           this.player.setScale(1, 1);
+          // Re-enable platform collisions
+          if (this.playerPlatformCollider) {
+            this.playerPlatformCollider.active = true;
+          }
           break;
         case 'finley':
           if (this.finleyGlow) { this.finleyGlow.destroy(); this.finleyGlow = null; }
           if (this.finleyPint) { this.finleyPint.destroy(); this.finleyPint = null; }
+          if (this.finleyInvText) {
+            this.finleyInvText.destroy(); this.finleyInvText = null;
+          }
           break;
       }
 
@@ -1999,6 +2345,9 @@
     }
 
     // -----------------------------------------------------------------------
+    // v5: shoot fires the new circular glowing bullets, big muzzle flash at
+    // the gun barrel, and works for ALL characters with left click. Powerups
+    // (e.g. Connor's dual pistols) ADD on top — they never replace the shot.
     shoot(pointer) {
       const now = this.time.now;
       if (now - this.lastShotTime < PLAYER_FIRE_CD) return;
@@ -2017,7 +2366,7 @@
       this.playerState.facing = nx >= 0 ? 1 : -1;
       this.player.setFlipX(nx < 0);
 
-      // Spawn bullet(s) — Connor's gangster mode fires 2 at slight spread
+      // Connor's gangster mode adds a second barrel — never replaces the shot
       const dualPistols = this.powerupActive && this.powerupKind === 'connor';
       const barrels = dualPistols ? [-0.08, 0.08] : [0];
       barrels.forEach(off => {
@@ -2025,26 +2374,27 @@
         const sy = py + ny * 6 - 4;
         const spread = rotateVec(nx, ny, off);
         const b = this.bullets.create(sx, sy, 'bullet');
-        b.setRotation(Math.atan2(spread.y, spread.x));
         b.setVelocity(spread.x * BULLET_SPEED, spread.y * BULLET_SPEED);
         b.setGravityY(BULLET_GRAVITY);
-        b.body.setSize(14, 4);
-        b.damage = this.playerState.damage; // damage carried per-bullet
-        // Muzzle flash
-        this.sparkFX.emitParticleAt(sx, sy, 5);
+        // Round bullet body
+        b.body.setSize(10, 10).setOffset(3, 3);
+        b.damage = this.playerState.damage;
+        b.isPlayer = true;
+        // Big bright muzzle flash at the gun barrel
+        this.muzzleFX.emitParticleAt(sx, sy, 8);
       });
 
-      // Recoil camera shake
+      // Recoil camera shake — every shot
       this.cameras.main.shake(70, 0.003);
 
-      // Small recoil kick on player — extra kick when dual-wielding
+      // Recoil kick (stronger when dual-wielding)
       const recoilMul = dualPistols ? 1.6 : 1;
       this.player.setVelocityX(
         this.player.body.velocity.x + (-nx * 60) * recoilMul
       );
     }
 
-    // Frog mode: fast, high-damage horizontal tongue projectile
+    // v5 Frog mode: bright GREEN horizontal tongue projectile
     shootTongue() {
       const dir = this.playerState.facing || 1;
       const sx = this.player.x + dir * 28;
@@ -2052,13 +2402,14 @@
       const t = this.bullets.create(sx, sy, 'tongue');
       t.setVelocity(dir * 1500, 0);
       t.body.setAllowGravity(false);
-      t.body.setSize(24, 8);
+      t.body.setSize(28, 8).setOffset(2, 3);
       t.setFlipX(dir < 0);
-      t.damage = 9999; // tongue insta-kills any standard enemy
+      t.damage = 9999; // insta-kills standard enemies
       t.isTongue = true;
-      this.sparkFX.emitParticleAt(sx, sy, 8);
+      t.isPlayer = true;
+      // Green burst at the launch point
+      this.muzzleFX.emitParticleAt(sx, sy, 6);
       this.cameras.main.shake(40, 0.002);
-      // Auto-destroy after a short window
       this.time.delayedCall(700, () => { if (t.active) t.destroy(); });
     }
 
@@ -2140,9 +2491,10 @@
         if (!this.player) return;
         this.player.clearTint();
         if (this.powerupActive) {
-          // Re-apply the powerup's tint
+          // Re-apply the powerup's tint — v5: no tint for Connor (texture
+          // already shows the navy gangster outfit, no yellow wash needed)
           const tint = {
-            connor: 0xffdd99, callum: 0xff8866, finley: 0xffe4a8,
+            connor: null, callum: 0xff8866, finley: 0xffe4a8,
             declan: 0x33ff44, aaron: 0x88aa66, charlie: 0xffccaa,
           }[this.powerupKind];
           if (tint != null) this.player.setTint(tint);
@@ -2232,7 +2584,8 @@
     }
 
     // -----------------------------------------------------------------------
-    // Infinite waves — when all enemies dead, 3s pause then spawn next wave.
+    // Infinite waves — v5: when all enemies dead, show a dramatic
+    // "WAVE CLEAR" text + screen flash, then 3s pause, then spawn next wave.
     checkWaveProgress() {
       if (this.gameOver || this.waveTransitioning) return;
       let alive = 0;
@@ -2241,6 +2594,8 @@
       }
       if (alive === 0) {
         this.waveTransitioning = true;
+        this.showWaveClear();
+        this.cameras.main.flash(220, 255, 230, 120);
         this.time.delayedCall(3000, () => {
           if (this.gameOver) return;
           this.wave += 1;
@@ -2249,6 +2604,26 @@
           this.waveTransitioning = false;
         });
       }
+    }
+
+    // v5: dramatic "WAVE CLEAR" text that pulses on screen briefly
+    showWaveClear() {
+      const t = this.add.text(GW / 2, GH / 2 - 20, 'WAVE CLEAR', {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '110px',
+        color: '#ffee44', stroke: '#553a00', strokeThickness: 8,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0).setScale(0.5);
+      this.tweens.add({
+        targets: t,
+        alpha: { from: 0, to: 1 }, scale: { from: 0.5, to: 1.1 },
+        duration: 360, ease: 'Back.easeOut',
+      });
+      this.cameras.main.shake(180, 0.005);
+      this.time.delayedCall(1500, () => {
+        this.tweens.add({
+          targets: t, alpha: 0, duration: 350,
+          onComplete: () => t.destroy(),
+        });
+      });
     }
 
     showWaveBanner(n) {
