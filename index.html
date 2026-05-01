@@ -86,19 +86,49 @@
   const GROUND_Y = 620;      // where the street surface sits
   const GRAVITY = 1600;      // base gravity (px/s^2)
 
-  const COYOTE_MS = 120;     // coyote-time grace window (ms)
+  const COYOTE_MS = 150;     // v6: coyote-time grace 0.15s after walking off
   const JUMP_BUFFER_MS = 100;// jump pressed slightly before landing
   const JUMP_VEL = -580;     // upward velocity on jump
-  const DIVE_VEL_X = 700;    // horizontal velocity on dive
-  const DIVE_VEL_Y = 500;    // downward velocity on dive
   const SLIDE_VEL = 440;     // slide launch velocity
   const SLIDE_MS = 500;      // slide duration
-  const BULLET_SPEED = 950;
-  const BULLET_GRAVITY = 120;// bullets drop slightly
-  const PLAYER_FIRE_CD = 180;// ms between shots (pistol)
+  const BULLET_SPEED = 1100; // v6: faster — bullets fly straight, no gravity
+  const BULLET_MAX_RANGE = 800; // v6: bullets disappear after 800px traveled
+  const PLAYER_FIRE_CD = 180;// pistol cooldown (default for non-Connor)
+  const CONNOR_SHOTGUN_CD = 600; // v6: Connor's shotgun cooldown
+  const CONNOR_SHOTGUN_PELLETS = 5; // v6: pellets per shotgun blast
+  const CONNOR_SHOTGUN_SPREAD = 0.55; // v6: total spread cone (radians)
   const BULLET_TIME_FACTOR = 0.25; // world timescale during bullet time
   const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
   const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
+
+  // v6: Wave location titles — shown at the start of certain waves
+  const WAVE_LOCATIONS = {
+    1:  'NORTHERN QUARTER',
+    3:  'ARNDALE BACK ALLEYS',
+    5:  'PICCADILLY GARDENS',
+    7:  'CURRY MILE',
+    10: 'THE PRINTWORKS — FINAL STAND',
+  };
+
+  // v6: Difficulty scaling per wave
+  // - Enemy count: wave 1 = 6, wave 2 = 8, wave 3 = 10, then +2 per wave
+  // - Speed: +8% per wave, capped at 2x
+  // - Composition shifts: wave 3+ more bouncers; wave 5+ hoodies majority
+  // - Wave 4+: enemies occasionally throw grenades
+  function waveEnemyCount(n) {
+    if (n <= 1) return 6;
+    return 6 + (n - 1) * 2; // wave 2 = 8, wave 3 = 10, wave 4 = 12...
+  }
+  function waveSpeedMul(n) {
+    return Math.min(2.0, 1 + (n - 1) * 0.08);
+  }
+  function waveComposition(n) {
+    // Returns weighted type pool — one entry per spawn slot
+    if (n >= 5) return ['hoodie','hoodie','hoodie','hoodie','bouncer','bouncer','chav'];
+    if (n >= 3) return ['chav','chav','bouncer','bouncer','bouncer','hoodie','hoodie'];
+    return ['chav','chav','chav','hoodie','hoodie','bouncer'];
+  }
+  function waveCanGrenade(n) { return n >= 4; }
 
   // =============================================================================
   // CHARACTERS — full roster. All 6 unlocked in v3.
@@ -167,16 +197,37 @@
     { x: 2700, y: 190, text: 'KEBAB',       color: 0xff33dd },
   ];
 
-  // 8 platforms across the level
+  // v6: Many more platforms at varying heights — proper Mario/Broforce style
+  // platforming. Three rough bands: low (~510), mid (~410), high (~310/270).
+  // Higher platforms are tactical-position spots reachable only via double-
+  // jump or by stepping up through lower platforms. Marked `kind` is
+  // cosmetic — 'platform' = concrete slab, 'rooftop' = wider rooftop,
+  // 'fireescape' = narrow grated platform, 'bin' = rubbish bin you can stand on.
   const PLATFORM_DATA = [
-    { x: 400,  y: 480, w: 140 },
-    { x: 700,  y: 400, w: 120 },
-    { x: 1000, y: 490, w: 180 },
-    { x: 1300, y: 410, w: 140 },
-    { x: 1620, y: 350, w: 160 },
-    { x: 1950, y: 460, w: 140 },
-    { x: 2250, y: 390, w: 170 },
-    { x: 2600, y: 470, w: 200 },
+    // Low band (ground+~110) — easy hop ups, often above bins
+    { x: 220,  y: 540, w: 50,  kind: 'bin' },
+    { x: 400,  y: 510, w: 140, kind: 'platform' },
+    { x: 600,  y: 540, w: 50,  kind: 'bin' },
+    { x: 1000, y: 510, w: 180, kind: 'platform' },
+    { x: 1240, y: 540, w: 50,  kind: 'bin' },
+    { x: 1480, y: 540, w: 50,  kind: 'bin' },
+    { x: 1950, y: 510, w: 140, kind: 'platform' },
+    { x: 2250, y: 540, w: 50,  kind: 'bin' },
+    { x: 2600, y: 510, w: 200, kind: 'platform' },
+    { x: 2880, y: 540, w: 50,  kind: 'bin' },
+
+    // Mid band (~400) — fire escapes and standard platforms
+    { x: 700,  y: 410, w: 120, kind: 'fireescape' },
+    { x: 1300, y: 410, w: 140, kind: 'platform' },
+    { x: 1620, y: 380, w: 160, kind: 'fireescape' },
+    { x: 2250, y: 400, w: 170, kind: 'platform' },
+    { x: 2780, y: 400, w: 120, kind: 'fireescape' },
+
+    // High band (~280) — wide rooftops, tactical positions
+    { x: 500,  y: 290, w: 180, kind: 'rooftop' },
+    { x: 1100, y: 280, w: 220, kind: 'rooftop' },
+    { x: 1820, y: 270, w: 240, kind: 'rooftop' },
+    { x: 2450, y: 290, w: 200, kind: 'rooftop' },
   ];
 
   // 6 enemies — mixture of types spread across the level
@@ -684,7 +735,115 @@
   // =============================================================================
   class BootScene extends Phaser.Scene {
     constructor() { super({ key: 'Boot' }); }
-    create() { this.scene.start('CharacterSelect'); }
+    // v6: route through the story intro before character select
+    create() { this.scene.start('StoryIntro'); }
+  }
+
+  // =============================================================================
+  // SCENE: STORY INTRO — v6
+  // Four lines of text fade in one at a time. Click anywhere to skip
+  // straight to the character select screen.
+  // =============================================================================
+  class StoryIntroScene extends Phaser.Scene {
+    constructor() { super({ key: 'StoryIntro' }); }
+
+    create() {
+      this.cameras.main.setBackgroundColor('#000000');
+
+      // Faint city silhouette + rain to set the mood
+      const city = this.add.graphics();
+      city.fillStyle(0x080510, 1);
+      city.fillRect(0, 0, GW, GH);
+      // Distant red glow pool at the horizon
+      city.fillStyle(0x331008, 1);
+      city.fillEllipse(GW / 2, GH * 0.78, GW * 1.2, 200);
+      city.fillStyle(0x551a14, 0.5);
+      city.fillEllipse(GW / 2, GH * 0.78, GW * 0.6, 100);
+      // Building silhouettes
+      const rng = mulberry32(7);
+      let x = 0;
+      while (x < GW) {
+        const bw = 50 + rng() * 100;
+        const bh = 110 + rng() * 220;
+        city.fillStyle(0x040208, 1);
+        city.fillRect(x, GH - bh - 80, bw, bh);
+        x += bw + 4 + rng() * 14;
+      }
+
+      // Rain
+      this.bgRain = [];
+      for (let i = 0; i < 140; i++) {
+        this.bgRain.push({
+          x: Math.random() * GW, y: Math.random() * GH,
+          v: 380 + Math.random() * 280,
+        });
+      }
+      this.rainGfx = this.add.graphics().setDepth(5);
+
+      // Title card "MANCHESTER, 2 AM" — big, set apart
+      const titleCard = this.add.text(GW / 2, GH * 0.32, 'MANCHESTER, 2 AM', {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '74px',
+        color: '#ff3322', stroke: '#330000', strokeThickness: 6,
+        letterSpacing: 6,
+      }).setOrigin(0.5).setAlpha(0);
+
+      // Three story lines beneath
+      const line1 = this.add.text(GW / 2, GH * 0.50,
+        'The streets of Piccadilly have gone mental.\nChavs, bouncers and hoodies have taken over the Northern Quarter.', {
+        fontFamily: 'monospace', fontSize: '20px', color: '#cccccc',
+        align: 'center', lineSpacing: 6,
+      }).setOrigin(0.5).setAlpha(0);
+
+      const line2 = this.add.text(GW / 2, GH * 0.66,
+        'You and the lads are the only ones who can sort it out.', {
+        fontFamily: 'monospace', fontSize: '20px', color: '#cccccc',
+        align: 'center',
+      }).setOrigin(0.5).setAlpha(0);
+
+      const line3 = this.add.text(GW / 2, GH * 0.78, 'Pick your fighter.', {
+        fontFamily: 'Impact', fontSize: '38px', color: '#ffaa22',
+        stroke: '#221100', strokeThickness: 3, letterSpacing: 4,
+      }).setOrigin(0.5).setAlpha(0);
+
+      // Skip prompt at the very bottom
+      const skipPrompt = this.add.text(GW / 2, GH - 30, 'CLICK TO SKIP / CONTINUE', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#665050',
+        letterSpacing: 4,
+      }).setOrigin(0.5).setAlpha(0);
+
+      // Sequenced fade-ins
+      this.tweens.add({ targets: titleCard,  alpha: 1, duration: 700, delay: 250 });
+      this.tweens.add({ targets: line1,      alpha: 1, duration: 700, delay: 1700 });
+      this.tweens.add({ targets: line2,      alpha: 1, duration: 700, delay: 3400 });
+      this.tweens.add({ targets: line3,      alpha: 1, duration: 700, delay: 5000 });
+      this.tweens.add({ targets: skipPrompt, alpha: { from: 0, to: 0.85 }, duration: 600, delay: 600,
+        yoyo: true, repeat: -1 });
+
+      // Click or any key skips straight to the character select
+      const proceed = () => {
+        this.cameras.main.fadeOut(280, 0, 0, 0);
+        this.time.delayedCall(300, () => this.scene.start('CharacterSelect'));
+      };
+      this.input.on('pointerdown', proceed);
+      this.input.keyboard.on('keydown', proceed);
+
+      // Auto-advance after the last line has been fully visible for ~2.5s
+      this.time.delayedCall(8200, () => {
+        if (this.scene.isActive('StoryIntro')) proceed();
+      });
+    }
+
+    update(time, delta) {
+      const dt = delta / 1000;
+      const g = this.rainGfx;
+      g.clear();
+      g.lineStyle(1, 0x4a7aaa, 0.30);
+      for (const r of this.bgRain) {
+        r.y += r.v * dt;
+        if (r.y > GH + 10) { r.y = -10; r.x = Math.random() * GW; }
+        g.lineBetween(r.x, r.y, r.x - 4, r.y + 14);
+      }
+    }
   }
 
   // =============================================================================
@@ -888,7 +1047,7 @@
 
     drawFooter() {
       this.add.text(GW / 2, GH - 22,
-        'WASD MOVE  ·  SPACE JUMP (DOUBLE-TAP IN AIR TO DIVE)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  MOUSE AIM + CLICK SHOOT  ·  E POWERUP  ·  F TONGUE',
+        'WASD MOVE  ·  SPACE JUMP (PRESS TWICE FOR DOUBLE JUMP)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  MOUSE AIM + CLICK SHOOT  ·  E POWERUP  ·  F TONGUE  ·  TAB SWITCH  ·  ESC PAUSE',
         { fontFamily: 'monospace', fontSize: '12px', color: '#665050', letterSpacing: 1 }
       ).setOrigin(0.5);
     }
@@ -966,13 +1125,17 @@
       this.powerupTimer = 0;
       this.powerupMax = 1;
       this.powerupKind = null;
+      // v6: pause and quick-switch state
+      this.paused = false;
+      this.quickSwitchOpen = false;
 
       // Wave state — infinite waves; game ends only on death
       this.wave = 1;
       this.waveTransitioning = false;
 
-      // Intro flash
+      // Intro flash + first wave banner with location title
       this.cameras.main.flash(400, 255, 255, 255);
+      this.time.delayedCall(500, () => this.showWaveBanner(1));
     }
 
     // -----------------------------------------------------------------------
@@ -1042,13 +1205,72 @@
       plat.fillStyle(0x2a2a30, 1); plat.fillRect(0, 0, 200, 20);
       plat.fillStyle(0x3a3a44, 1); plat.fillRect(0, 0, 200, 3);
       plat.fillStyle(0x141418, 1); plat.fillRect(0, 18, 200, 2);
-      // rebar texture hint
       for (let i = 8; i < 200; i += 18) {
         plat.fillStyle(0x1a1a1e, 1);
         plat.fillRect(i, 6, 2, 8);
       }
       plat.generateTexture('platform', 200, 20);
       plat.destroy();
+
+      // v6: Rooftop — wider tile with brick edge and rusty trim
+      const roof = this.make.graphics({ add: false });
+      roof.fillStyle(0x1a1010, 1); roof.fillRect(0, 0, 200, 22);
+      roof.fillStyle(0x331a14, 1); roof.fillRect(0, 0, 200, 4);
+      roof.fillStyle(0x442222, 1); roof.fillRect(0, 4, 200, 1);
+      // Brick joints
+      for (let i = 0; i < 200; i += 22) {
+        roof.fillStyle(0x0a0606, 1);
+        roof.fillRect(i, 5, 1, 17);
+      }
+      // Rusty drip
+      roof.fillStyle(0x553311, 0.6);
+      roof.fillRect(40, 18, 30, 4);
+      roof.fillRect(140, 18, 24, 4);
+      roof.generateTexture('platform_rooftop', 200, 22);
+      roof.destroy();
+
+      // v6: Fire escape — grated metal platform
+      const fe = this.make.graphics({ add: false });
+      fe.fillStyle(0x2a2a2e, 1); fe.fillRect(0, 0, 200, 12);
+      fe.fillStyle(0x3a3a40, 1); fe.fillRect(0, 0, 200, 2);
+      // Grate slats (vertical)
+      for (let i = 2; i < 200; i += 5) {
+        fe.fillStyle(0x141418, 1);
+        fe.fillRect(i, 3, 1, 7);
+      }
+      // Side brackets (rust)
+      fe.fillStyle(0x553322, 1);
+      fe.fillRect(0, 0, 4, 12);
+      fe.fillRect(196, 0, 4, 12);
+      fe.generateTexture('platform_fireescape', 200, 12);
+      fe.destroy();
+
+      // v6: Wheelie bin — small dark green box you can stand on
+      const bin = this.make.graphics({ add: false });
+      // Body
+      bin.fillStyle(0x1a3a1a, 1); bin.fillRect(2, 6, 46, 36);
+      // Lid
+      bin.fillStyle(0x0e2a0e, 1); bin.fillRect(0, 0, 50, 8);
+      bin.fillStyle(0x2a4a2a, 1); bin.fillRect(0, 6, 50, 2);
+      // Vertical ribs
+      for (let i = 8; i < 50; i += 10) {
+        bin.fillStyle(0x0a1f0a, 1);
+        bin.fillRect(i, 8, 1, 30);
+      }
+      // Wheel hint at base
+      bin.fillStyle(0x000000, 1);
+      bin.fillRect(4, 40, 8, 4);
+      bin.fillRect(38, 40, 8, 4);
+      bin.generateTexture('platform_bin', 50, 44);
+      bin.destroy();
+
+      // v6: Grenade — flashing red circle, used for enemy ranged attack
+      const gr = this.make.graphics({ add: false });
+      gr.fillStyle(0x553333, 1); gr.fillCircle(8, 8, 7);  // outer body
+      gr.fillStyle(0xaa2222, 1); gr.fillCircle(8, 8, 5);  // inner
+      gr.fillStyle(0xff4444, 1); gr.fillCircle(8, 6, 2);  // top blink dot
+      gr.generateTexture('grenade', 16, 16);
+      gr.destroy();
 
       // Bullet trail particle (small yellow)
       const t = this.make.graphics({ add: false });
@@ -1186,12 +1408,8 @@
         const h = 42;
         const boxX = sign.x, boxY = sign.y;
 
-        // Soft glow halo behind the sign (against the brick)
-        const halo = this.add.graphics();
-        halo.fillStyle(col, 0.20);
-        halo.fillCircle(boxX, boxY + h / 2, 70);
-        halo.fillStyle(col, 0.10);
-        halo.fillCircle(boxX, boxY + h / 2, 120);
+        // v6: Halo circles removed entirely — signs are now physical
+        // panels bolted to the wall, no floating glow background.
 
         // Mount plate — slightly larger than the frame, dark metal
         const plate = this.add.graphics();
@@ -1232,20 +1450,19 @@
           color: '#ffffff',
         }).setOrigin(0.5);
 
-        // Subtle flicker on the bright elements (not on the bolts/plate)
+        // Subtle flicker on the bright elements only
         this.tweens.add({
-          targets: [txt, txtGlow, halo],
+          targets: [txt, txtGlow],
           alpha: { from: 1, to: 0.85 },
           duration: 90 + Math.random() * 100,
           yoyo: true, repeat: -1,
         });
 
-        // v5: SINGLE small ground light pool beneath each sign (was duplicated)
+        // v6: SINGLE small subtle ellipse on the ground beneath each sign
+        // (kept small per spec — no large floating glow anywhere).
         const pool = this.add.graphics();
-        pool.fillStyle(col, 0.30);
-        pool.fillEllipse(boxX, GROUND_Y - 2, 130, 18);
-        pool.fillStyle(col, 0.12);
-        pool.fillEllipse(boxX, GROUND_Y - 2, 200, 28);
+        pool.fillStyle(col, 0.22);
+        pool.fillEllipse(boxX, GROUND_Y - 2, 100, 12);
         pool.setDepth(-1);
         this.neonLightPools.push({ g: pool, baseX: boxX, color: col });
       });
@@ -1291,13 +1508,30 @@
       });
     }
 
+    // v6: Platforms are now one-way (jump up through, land on top). Each
+    // kind has its own texture: concrete platform, brick rooftop, grated
+    // fire escape, or a wheelie bin you can hop onto. The body's left/
+    // right/down collision faces are disabled so things only collide on top.
     createPlatforms() {
       this.platforms = this.physics.add.staticGroup();
       PLATFORM_DATA.forEach(p => {
-        // Use a tileSprite so any width works
-        const plat = this.add.tileSprite(p.x, p.y, p.w, 20, 'platform')
-          .setOrigin(0.5);
+        const kind = p.kind || 'platform';
+        let plat;
+        if (kind === 'bin') {
+          plat = this.add.image(p.x, p.y, 'platform_bin').setOrigin(0.5, 0.5);
+        } else {
+          const tex =
+            kind === 'rooftop'    ? 'platform_rooftop'
+          : kind === 'fireescape' ? 'platform_fireescape'
+          : 'platform';
+          const h = kind === 'fireescape' ? 12 : (kind === 'rooftop' ? 22 : 20);
+          plat = this.add.tileSprite(p.x, p.y, p.w, h, tex).setOrigin(0.5);
+        }
         this.physics.add.existing(plat, true);
+        // One-way: only collide from above. Player/enemy can jump UP through.
+        plat.body.checkCollision.down  = false;
+        plat.body.checkCollision.left  = false;
+        plat.body.checkCollision.right = false;
         this.platforms.add(plat);
       });
     }
@@ -1322,7 +1556,9 @@
         facing: 1,
         lastGroundedAt: 0,
         lastJumpPressedAt: -99999,
-        hasUsedDive: false,
+        // v6: double jump system — refill on ground touch
+        jumpsRemaining: 2,
+        maxJumps: 2,
         isSliding: false,
         slideEndsAt: 0,
         isCrouching: false,
@@ -1367,36 +1603,32 @@
       this.enemies = this.physics.add.group();
       this.enemyData = new Map(); // sprite -> state
       // Wave 1 uses the hand-placed ENEMY_SPAWNS list (6 enemies)
-      ENEMY_SPAWNS.forEach(spawn => this.spawnEnemy(spawn.x, spawn.type));
+      ENEMY_SPAWNS.forEach(spawn => this.spawnEnemy(spawn.x, spawn.type, 1));
     }
 
-    // Spawn a single enemy at x of the given type, register its state.
-    // v5: spawn slightly above ground (not exactly on it) so the body settles
-    // cleanly via gravity — this kills the ground-vibration glitch where
-    // enemies (especially the scaled-up bouncer) jittered un-shootably along
-    // the floor. Body sizing is also normalised: the bouncer keeps a single
-    // body size and uses scale only for visuals, with offset recomputed.
-    spawnEnemy(x, type) {
+    // v6: spawnEnemy now scales speed by wave (capped at 2x base) and tags
+    // each enemy with its wave so AI can decide whether to throw grenades.
+    spawnEnemy(x, type, waveN) {
+      const wave = waveN || this.wave || 1;
       const stats = ENEMY_STATS[type];
+      const speedMul = waveSpeedMul(wave);
       const tex = 'enemy_' + type;
-      const e = this.enemies.create(x, GROUND_Y - 80, tex); // spawn higher
+      const e = this.enemies.create(x, GROUND_Y - 80, tex);
       e.setCollideWorldBounds(true);
       e.body.setSize(28, 56);
       e.body.setOffset(11, 12);
       if (type === 'bouncer') {
         e.setScale(1.2);
-        // After scale, sprite is 60x86.4. Body must be re-set in unscaled
-        // coords so physics doesn't drift — keep body 28x56 but bump offset
-        // so the foot of the body lines up with the foot of the scaled sprite.
         e.body.setSize(28, 56);
         e.body.setOffset(11, 12);
       }
-      // Drag prevents micro-vibration when enemy stops at a wall edge
       e.body.setDragX(200);
       this.enemyData.set(e, {
-        type,
+        type, wave,
         hp: stats.hp, maxHp: stats.hp,
-        speed: stats.speed, damage: stats.damage, touchDmg: stats.touchDmg,
+        // Apply wave speed scaling (capped at 2x in waveSpeedMul)
+        speed: stats.speed * speedMul,
+        damage: stats.damage, touchDmg: stats.touchDmg,
         patrolOrigin: x,
         patrolDir: Math.random() > 0.5 ? 1 : -1,
         lastShotAt: 0,
@@ -1404,18 +1636,27 @@
         ragdollVx: 0, ragdollVy: 0, ragdollRot: 0,
         chargeUntil: 0,
         nextActionAt: 0,
+        // v6: grenade throw state
+        nextGrenadeAt: this.time.now + 3500 + Math.random() * 4000,
+        // v6: AI jump state — used to hop onto platforms
+        nextAiJumpAt: 0,
       });
       return e;
     }
 
-    // Waves 2+ — 8 enemies, random mix, spread across the level
+    // v6: Waves 2+ — count and composition both scale by wave number.
+    // Wave 1 = 6 (handled in createEnemies), wave 2 = 8, wave 3 = 10,
+    // then +2 per wave. Composition shifts per waveComposition().
     spawnWave(n) {
-      const types = ['chav', 'hoodie', 'bouncer'];
-      const baseXs = [350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
-      for (let i = 0; i < 8; i++) {
-        const type = types[Math.floor(Math.random() * types.length)];
-        const jitter = (Math.random() - 0.5) * 100;
-        this.spawnEnemy(baseXs[i] + jitter, type);
+      const count = waveEnemyCount(n);
+      const pool = waveComposition(n);
+      // Distribute spawn xs evenly across the world
+      for (let i = 0; i < count; i++) {
+        const t = (i + 0.5) / count;
+        const baseX = 200 + t * (WORLD_W - 400);
+        const jitter = (Math.random() - 0.5) * 120;
+        const type = pool[Math.floor(Math.random() * pool.length)];
+        this.spawnEnemy(baseX + jitter, type, n);
       }
     }
 
@@ -1439,9 +1680,12 @@
       });
     }
 
+    // v6: Bullets travel in a straight line — no gravity, no arc.
     createBullets() {
-      this.bullets = this.physics.add.group({ allowGravity: true });
-      this.enemyBullets = this.physics.add.group({ allowGravity: true });
+      this.bullets      = this.physics.add.group({ allowGravity: false });
+      this.enemyBullets = this.physics.add.group({ allowGravity: false });
+      // Grenades thrown by enemies — these DO have gravity (proper arc)
+      this.grenades     = this.physics.add.group({ allowGravity: true });
     }
 
     // -----------------------------------------------------------------------
@@ -1597,9 +1841,91 @@
 
       // Controls hint (bottom right)
       this.hud.add(this.add.text(GW - 12, GH - 10,
-        'WASD · SPACE · S+DIR SLIDE · SHIFT BULLET TIME · MOUSE AIM + CLICK SHOOT · E POWERUP · F TONGUE',
+        'WASD · SPACE (x2 DOUBLE JUMP) · S+DIR SLIDE · SHIFT BULLET TIME · MOUSE AIM + CLICK · E POWERUP · F TONGUE · TAB SWITCH · ESC PAUSE',
         { fontFamily: 'monospace', fontSize: '10px', color: '#554444' }
       ).setOrigin(1, 1));
+
+      // v6: Top-centre character switcher row — 6 portraits, current
+      // highlighted. Click any to instantly switch character (resets HP to
+      // 100, keeps wave + kills).
+      this.createCharSwitcherRow();
+    }
+
+    // v6: Build the small character row at the top centre of the HUD.
+    createCharSwitcherRow() {
+      const iconW = 44, iconH = 56, gap = 8;
+      const total = CHAR_ORDER.length * iconW + (CHAR_ORDER.length - 1) * gap;
+      const startX = GW / 2 - total / 2;
+      const y = 8;
+      this.charSwitcherIcons = [];
+      CHAR_ORDER.forEach((id, i) => {
+        const x = startX + i * (iconW + gap);
+        const bg = this.add.rectangle(x + iconW / 2, y + iconH / 2, iconW, iconH,
+          0x0a0a0a, 0.85).setStrokeStyle(2, 0x554444).setScrollFactor(0).setDepth(200);
+        // Portrait — use the existing player_<id> texture, scaled to fit
+        const portrait = this.add.image(x + iconW / 2, y + iconH / 2,
+          'player_' + id).setScrollFactor(0).setDepth(201).setScale(0.55);
+        bg.setInteractive({ useHandCursor: true });
+        bg.on('pointerdown', () => {
+          if (this.gameOver || this.paused) return;
+          if (id !== this.selectedCharacter) this.switchCharacter(id);
+        });
+        this.charSwitcherIcons.push({ id, bg, portrait });
+        this.hud.add(bg); this.hud.add(portrait);
+      });
+      this.refreshCharSwitcherRow();
+    }
+
+    // v6: Highlight the currently-selected character in the switcher row.
+    refreshCharSwitcherRow() {
+      if (!this.charSwitcherIcons) return;
+      this.charSwitcherIcons.forEach(item => {
+        if (item.id === this.selectedCharacter) {
+          item.bg.setStrokeStyle(3, 0xffaa22);
+          item.bg.setFillStyle(0x331a08, 0.95);
+          item.portrait.setAlpha(1);
+        } else {
+          item.bg.setStrokeStyle(2, 0x554444);
+          item.bg.setFillStyle(0x0a0a0a, 0.85);
+          item.portrait.setAlpha(0.6);
+        }
+      });
+    }
+
+    // v6: Switch character mid-game. Resets HP to 100, keeps wave + kill
+    // count, cancels any active powerup, rebuilds Connor's arm overlay
+    // appropriately.
+    switchCharacter(newCharId) {
+      if (!CHARACTERS[newCharId]) return;
+      // Cancel any active powerup cleanly
+      if (this.powerupActive) this.deactivatePowerup();
+      // Drop the old Connor arm if it exists
+      if (this.connorArm) {
+        this.connorArm.destroy();
+        this.connorArm = null;
+      }
+      this.selectedCharacter = newCharId;
+      // Swap texture & rebuild base player state
+      this.player.setTexture('player_' + newCharId);
+      const stats = CHARACTERS[newCharId].stats;
+      this.playerState.id = newCharId;
+      this.playerState.hp = 100;          // v6 spec: switch resets HP to 100
+      this.playerState.maxHp = 100;
+      this.playerState.baseSpeed = statToSpeed(stats.speed);
+      this.playerState.damage = statToDamage(stats.damage);
+      this.playerState.invincibleUntil = this.time.now + 600; // brief grace
+      // Recreate the rotating arm if Connor was selected
+      if (newCharId === 'connor') {
+        this.connorArm = this.add.graphics().setDepth(11);
+        this.drawConnorArm(this.connorArm);
+      }
+      // Update HUD name + switcher highlight
+      this.hudName.setText(CHARACTERS[newCharId].name);
+      this.refreshCharSwitcherRow();
+      // Punchy feedback
+      this.cameras.main.flash(180, 255, 220, 80);
+      this.showFloatingText(this.player.x, this.player.y - 80,
+        CHARACTERS[newCharId].name, '#ffee44');
     }
 
     // -----------------------------------------------------------------------
@@ -1644,19 +1970,190 @@
         tongue: Phaser.Input.Keyboard.KeyCodes.F, // Frog mode tongue
       });
 
-      // Click to shoot
+      // Click to shoot — but ignore clicks on HUD (they handle themselves)
       this.input.on('pointerdown', pointer => {
-        if (this.gameOver) return;
+        if (this.gameOver || this.paused) return;
         this.shoot(pointer);
       });
 
-      // Track whether jump was pressed this frame (for dive)
-      this.jumpWasDown = false;
+      // v6: TAB cycles character switcher (closes if open). ESC pauses.
+      this.input.keyboard.on('keydown-TAB', e => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (this.gameOver) return;
+        this.toggleQuickSwitch();
+      });
+      this.input.keyboard.on('keydown-ESC', () => {
+        if (this.gameOver) return;
+        this.togglePause();
+      });
 
-      // Track S/E/F pressed this frame for edge detection
+      // Track edge detection for repeated keys
+      this.jumpWasDown = false;
       this.sWasDown = false;
       this.eWasDown = false;
       this.fWasDown = false;
+    }
+
+    // v6: TAB-triggered quick switcher overlay — large portraits in a row,
+    // click any to switch instantly. The top HUD row also lets you switch
+    // without opening the overlay; this is the keyboard-friendly version.
+    toggleQuickSwitch() {
+      if (this.quickSwitchOpen) {
+        this.closeQuickSwitch();
+      } else {
+        this.openQuickSwitch();
+      }
+    }
+
+    openQuickSwitch() {
+      if (this.quickSwitchOpen) return;
+      this.quickSwitchOpen = true;
+      this.physics.world.pause();
+      this.tweens.pauseAll();
+      const c = this.add.container(0, 0).setScrollFactor(0).setDepth(220);
+      // Dim background
+      const dim = this.add.rectangle(0, 0, GW, GH, 0x000000, 0.62)
+        .setOrigin(0, 0).setInteractive();
+      c.add(dim);
+      // Title
+      const title = this.add.text(GW / 2, 70, 'PICK A FIGHTER', {
+        fontFamily: 'Impact', fontSize: '54px', color: '#ffaa22',
+        stroke: '#221100', strokeThickness: 4, letterSpacing: 6,
+      }).setOrigin(0.5);
+      c.add(title);
+      // 6 portraits in a row
+      const cardW = 150, cardH = 220, gap = 18;
+      const total = CHAR_ORDER.length * cardW + (CHAR_ORDER.length - 1) * gap;
+      const startX = GW / 2 - total / 2;
+      const y = 180;
+      CHAR_ORDER.forEach((id, i) => {
+        const x = startX + i * (cardW + gap);
+        const sel = (id === this.selectedCharacter);
+        const bg = this.add.rectangle(x + cardW / 2, y + cardH / 2, cardW, cardH,
+          sel ? 0x331a08 : 0x0a0a0a, 0.95)
+          .setStrokeStyle(3, sel ? 0xffaa22 : 0x554444)
+          .setInteractive({ useHandCursor: true });
+        const portrait = this.add.image(x + cardW / 2, y + cardH / 2 - 10,
+          'player_' + id).setScale(2.0);
+        const name = this.add.text(x + cardW / 2, y + cardH - 26,
+          CHARACTERS[id].name, {
+            fontFamily: 'Impact', fontSize: '22px', color: '#ffffff',
+            stroke: '#220000', strokeThickness: 2,
+          }).setOrigin(0.5);
+        bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffee66));
+        bg.on('pointerout',  () => bg.setStrokeStyle(3, sel ? 0xffaa22 : 0x554444));
+        bg.on('pointerdown', () => {
+          this.closeQuickSwitch();
+          if (id !== this.selectedCharacter) this.switchCharacter(id);
+        });
+        c.add(bg); c.add(portrait); c.add(name);
+      });
+      // Hint
+      c.add(this.add.text(GW / 2, GH - 60,
+        'CLICK A FIGHTER  ·  TAB OR ESC TO CLOSE', {
+          fontFamily: 'monospace', fontSize: '14px', color: '#aa8866',
+          letterSpacing: 4,
+        }).setOrigin(0.5));
+      this.quickSwitchContainer = c;
+    }
+
+    closeQuickSwitch() {
+      if (!this.quickSwitchOpen) return;
+      this.quickSwitchOpen = false;
+      if (this.quickSwitchContainer) {
+        this.quickSwitchContainer.destroy(); this.quickSwitchContainer = null;
+      }
+      // Only resume if we're not also paused via ESC
+      if (!this.paused) {
+        this.physics.world.resume();
+        this.tweens.resumeAll();
+      }
+    }
+
+    // v6: ESC pause menu — RESUME, SWITCH CHARACTER, RESTART, QUIT TO MENU
+    togglePause() {
+      if (this.paused) {
+        this.resumeGame();
+      } else {
+        this.pauseGame();
+      }
+    }
+
+    pauseGame() {
+      if (this.paused) return;
+      this.paused = true;
+      // Close any quick-switcher first
+      if (this.quickSwitchOpen) this.closeQuickSwitch();
+      this.physics.world.pause();
+      this.tweens.pauseAll();
+
+      const c = this.add.container(0, 0).setScrollFactor(0).setDepth(230);
+      // Dim background
+      c.add(this.add.rectangle(0, 0, GW, GH, 0x000000, 0.72)
+        .setOrigin(0, 0).setInteractive());
+      // Title
+      c.add(this.add.text(GW / 2, 130, 'PAUSED', {
+        fontFamily: 'Impact', fontSize: '90px', color: '#ffffff',
+        stroke: '#221100', strokeThickness: 5, letterSpacing: 8,
+      }).setOrigin(0.5));
+      // Current stats
+      const statTxt =
+        CHARACTERS[this.selectedCharacter].name +
+        '   ·   WAVE ' + this.wave +
+        '   ·   KILLS ' + this.kills +
+        '   ·   HP ' + Math.max(0, Math.round(this.playerState.hp)) +
+        ' / ' + this.playerState.maxHp;
+      c.add(this.add.text(GW / 2, 210, statTxt, {
+        fontFamily: 'monospace', fontSize: '18px', color: '#aaaaaa',
+        letterSpacing: 2,
+      }).setOrigin(0.5));
+
+      // Buttons
+      const btn = (label, cy, onClick, colour) => {
+        const bg = this.add.rectangle(GW / 2, cy, 380, 56,
+          colour || 0x1a1a22, 0.95)
+          .setStrokeStyle(2, 0x665544)
+          .setInteractive({ useHandCursor: true });
+        const t = this.add.text(GW / 2, cy, label, {
+          fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
+          letterSpacing: 4,
+        }).setOrigin(0.5);
+        bg.on('pointerover', () => { bg.setFillStyle(0x44221a); t.setColor('#ffee66'); });
+        bg.on('pointerout',  () => { bg.setFillStyle(colour || 0x1a1a22); t.setColor('#ffffff'); });
+        bg.on('pointerdown', onClick);
+        c.add(bg); c.add(t);
+      };
+      btn('RESUME',           300, () => this.resumeGame());
+      btn('SWITCH CHARACTER', 372, () => {
+        this.resumeGame();
+        this.openQuickSwitch();
+      });
+      btn('RESTART',          444, () => {
+        this.scene.restart({ character: this.selectedCharacter });
+      });
+      btn('QUIT TO MENU',     516, () => {
+        this.scene.start('CharacterSelect');
+      }, 0x331111);
+
+      c.add(this.add.text(GW / 2, GH - 30, 'ESC TO RESUME', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#665544',
+        letterSpacing: 4,
+      }).setOrigin(0.5));
+
+      this.pauseContainer = c;
+    }
+
+    resumeGame() {
+      if (!this.paused) return;
+      this.paused = false;
+      if (this.pauseContainer) {
+        this.pauseContainer.destroy(); this.pauseContainer = null;
+      }
+      // Don't resume physics if quick-switch is somehow open
+      if (!this.quickSwitchOpen) {
+        this.physics.world.resume();
+        this.tweens.resumeAll();
+      }
     }
 
     setupCollisions() {
@@ -1679,6 +2176,10 @@
       this.physics.add.collider(this.bullets, this.platforms, hitSolid);
       this.physics.add.collider(this.enemyBullets, this.groundBody, hitSolid);
       this.physics.add.collider(this.enemyBullets, this.platforms, hitSolid);
+
+      // v6: Grenades bounce off ground/platforms (don't destroy on impact)
+      this.physics.add.collider(this.grenades, this.groundBody);
+      this.physics.add.collider(this.grenades, this.platforms);
 
       // Bullet vs enemy — bullet carries its own damage (tongue = 9999, normal = playerDmg)
       this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
@@ -1771,6 +2272,8 @@
     // -----------------------------------------------------------------------
     update(time, delta) {
       if (this.gameOver) return;
+      // v6: skip everything when paused or the quick switch overlay is up
+      if (this.paused || this.quickSwitchOpen) return;
 
       // Current effective time factor (for custom non-physics logic)
       const timeScale = this.bulletTimeActive ? BULLET_TIME_FACTOR : 1.0;
@@ -1843,7 +2346,9 @@
       const onGround = body.blocked.down || body.touching.down;
       if (onGround) {
         ps.lastGroundedAt = time;
-        ps.hasUsedDive = false;
+        // v6: refill jumps when touching the ground (or any platform top)
+        ps.maxJumps = (this.powerupActive && this.powerupKind === 'declan') ? 3 : 2;
+        ps.jumpsRemaining = ps.maxJumps;
       }
 
       // Horizontal input
@@ -1926,38 +2431,44 @@
       if (jumpJustPressed && !jumpBlocked) {
         ps.lastJumpPressedAt = time;
 
-        const canJump =
-          onGround ||
-          (time - ps.lastGroundedAt) <= COYOTE_MS;
+        // v6: full-height double jump system.
+        // - First jump: grounded OR coyote (uses one charge)
+        // - Second jump: in air with charge remaining (full height)
+        // - Frog mode allows 3 jumps total (set in onGround branch)
+        const inCoyote = (time - ps.lastGroundedAt) <= COYOTE_MS;
+        const canFirstJump = onGround || inCoyote;
+        const canAirJump = !onGround && ps.jumpsRemaining > 0;
 
-        // Frog mode triples jump height (sqrt(3) ≈ 1.732 on velocity)
         const jumpVel =
           (this.powerupActive && this.powerupKind === 'declan')
-            ? JUMP_VEL * 1.732
+            ? JUMP_VEL * 1.15  // slight boost in Frog mode
             : JUMP_VEL;
 
-        if (canJump) {
+        if (canFirstJump || canAirJump) {
           this.player.setVelocityY(jumpVel);
-          // reset dive use — we left the ground
-          ps.hasUsedDive = false;
-          // Crouch/slide breaks jump allowed
+          ps.jumpsRemaining -= 1;
+          // Coyote first-jump still costs a charge
+          if (inCoyote && !onGround) ps.jumpsRemaining = Math.max(0, ps.jumpsRemaining - 0);
+          // Quick spark on the second jump for feedback
+          if (!onGround) {
+            this.sparkFX.emitParticleAt(this.player.x, this.player.y + 18, 6);
+          }
+          // Slide cancels into a jump
           if (ps.isSliding) {
             ps.isSliding = false;
             this.player.body.setSize(28, 56);
             this.player.body.setOffset(11, 12);
             this.player.setRotation(0);
           }
-        } else if (!onGround && !ps.hasUsedDive) {
-          // DIVE — one use per airborne, in current facing direction
-          ps.hasUsedDive = true;
-          const dir = ps.facing || 1;
-          this.player.setVelocityX(dir * DIVE_VEL_X);
-          this.player.setVelocityY(DIVE_VEL_Y);
-          this.player.setRotation(dir * 0.5);
-          this.cameras.main.shake(80, 0.004);
-          // Blood-spray style spark from player for visual oomph
-          this.sparkFX.emitParticleAt(this.player.x, this.player.y + 10, 6);
         }
+      }
+
+      // v6: pressing S while airborne fast-falls THROUGH a one-way platform
+      // by briefly disabling top collision on platforms the player is on.
+      if (sNow && !onGround && this.playerPlatformCollider &&
+          this.playerPlatformCollider.active) {
+        // Soft drop: nudge down so we slip past the next one-way platform
+        if (this.player.body.velocity.y < 0) this.player.setVelocityY(60);
       }
 
       // After a dive, restore rotation once on ground
@@ -2038,46 +2549,60 @@
         const dir = Math.sign(dx) || 1;
         const stats = ENEMY_STATS[data.type];
 
+        // Use the per-enemy scaled speed (set at spawn time)
+        const sp = data.speed;
+
+        // v6: Platform-jump AI — if the player is significantly above this
+        // enemy and the enemy is grounded, jump to try to reach them.
+        const playerAbove = (this.player.y < enemy.y - 60);
+        const onSomething = enemy.body.blocked.down || enemy.body.touching.down;
+        if (playerAbove && onSomething && time > data.nextAiJumpAt && dist < 600) {
+          enemy.setVelocityY(-520);
+          data.nextAiJumpAt = time + 800 + Math.random() * 600;
+        }
+
+        // v6: Grenade throw — wave 4+, on cooldown, when at moderate range.
+        if (waveCanGrenade(data.wave || this.wave) &&
+            data.type !== 'hoodie' && time > data.nextGrenadeAt &&
+            dist > 200 && dist < 700 && onSomething) {
+          this.enemyThrowGrenade(enemy);
+          data.nextGrenadeAt = time + 5500 + Math.random() * 4000;
+        }
+
         // Type-specific AI
         if (data.type === 'chav') {
-          // Patrols; sometimes stops and shoots
           if (dist < 480) {
-            // Face player and occasionally shoot
             enemy.setFlipX(dx < 0);
             if (time - data.lastShotAt > 1600) {
               data.lastShotAt = time;
               this.enemyShoot(enemy, dir);
             }
-            enemy.setVelocityX(dir * stats.speed * 0.4);
+            enemy.setVelocityX(dir * sp * 0.4);
           } else {
-            // Patrol
             if (enemy.x < data.patrolOrigin - 80) data.patrolDir = 1;
             if (enemy.x > data.patrolOrigin + 80) data.patrolDir = -1;
-            enemy.setVelocityX(data.patrolDir * stats.speed * 0.6);
+            enemy.setVelocityX(data.patrolDir * sp * 0.6);
             enemy.setFlipX(data.patrolDir < 0);
           }
         } else if (data.type === 'bouncer') {
-          // Slow, charges when close
           if (dist < 300) {
-            enemy.setVelocityX(dir * stats.speed * 2.2);
+            enemy.setVelocityX(dir * sp * 2.2);
             enemy.setFlipX(dx < 0);
           } else if (dist < 600) {
-            enemy.setVelocityX(dir * stats.speed * 0.6);
+            enemy.setVelocityX(dir * sp * 0.6);
             enemy.setFlipX(dx < 0);
           } else {
             enemy.setVelocityX(0);
           }
         } else if (data.type === 'hoodie') {
-          // Fast erratic rusher
           if (time > data.nextActionAt) {
             data.nextActionAt = time + 200 + Math.random() * 300;
-            data.patrolDir = dir; // lock onto player
-            // Jump occasionally
-            if (enemy.body.blocked.down && Math.random() > 0.7) {
+            data.patrolDir = dir;
+            if (onSomething && Math.random() > 0.7) {
               enemy.setVelocityY(-420);
             }
           }
-          enemy.setVelocityX(dir * stats.speed);
+          enemy.setVelocityX(dir * sp);
           enemy.setFlipX(dx < 0);
         }
       }
@@ -2086,26 +2611,88 @@
     enemyShoot(enemy, dir) {
       const bx = enemy.x + dir * 22;
       const by = enemy.y - 4;
-      // v5: enemy bullets use the dedicated red glowing texture
+      // v6: aim straight at the player (no gravity drop)
+      const dxp = this.player.x - bx;
+      const dyp = this.player.y - by;
+      const d = Math.max(20, Math.hypot(dxp, dyp));
+      const nx = dxp / d, ny = dyp / d;
       const b = this.enemyBullets.create(bx, by, 'enemy_bullet');
-      b.setVelocity(dir * 500, -40 + (Math.random() - 0.5) * 40);
-      b.setGravityY(BULLET_GRAVITY);
+      b.setVelocity(nx * 600, ny * 600);
       b.body.setSize(10, 10).setOffset(3, 3);
       b.isEnemy = true;
-      // Red muzzle spark
+      b.startX = bx; b.startY = by;
+      b.maxRange = BULLET_MAX_RANGE;
       this.enemyMuzzleFX.emitParticleAt(bx, by, 4);
-      // Kill after 2s
       this.time.delayedCall(2200, () => { if (b.active) b.destroy(); });
     }
 
-    // -----------------------------------------------------------------------
-    // v5: emit a short coloured trail behind every bullet each frame.
-    // In bullet time we double the trail count so streaks read as longer.
+    // v6: Throw a grenade at the player — flashing red circle that arcs
+    // through the air and explodes after 2 seconds, dealing radius damage.
+    enemyThrowGrenade(enemy) {
+      const dxp = this.player.x - enemy.x;
+      const dir = Math.sign(dxp) || 1;
+      const g = this.grenades.create(enemy.x + dir * 16, enemy.y - 12, 'grenade');
+      g.body.setSize(12, 12).setOffset(2, 2);
+      g.setBounce(0.4);
+      g.setCollideWorldBounds(true);
+      // Lobbed toward the player — clamp to a reasonable arc
+      const power = Math.min(900, Math.abs(dxp) * 1.6);
+      g.setVelocityX(dir * Math.max(180, power * 0.6));
+      g.setVelocityY(-360 - Math.random() * 80);
+      // Flashing tint while ticking down
+      g.flashTween = this.tweens.add({
+        targets: g, alpha: { from: 1, to: 0.4 },
+        duration: 140, yoyo: true, repeat: -1,
+      });
+      // Detonate after 2 seconds
+      this.time.delayedCall(2000, () => this.explodeGrenade(g));
+    }
+
+    // v6: Explode a grenade — radius damage if player is close
+    explodeGrenade(g) {
+      if (!g.active) return;
+      const ex = g.x, ey = g.y;
+      // Visual blast
+      this.bloodFX.emitParticleAt(ex, ey, 14);
+      this.muzzleFX.emitParticleAt(ex, ey, 18);
+      const blast = this.add.graphics();
+      blast.fillStyle(0xff4400, 0.7); blast.fillCircle(ex, ey, 60);
+      blast.fillStyle(0xffaa22, 0.5); blast.fillCircle(ex, ey, 40);
+      blast.fillStyle(0xffffaa, 0.7); blast.fillCircle(ex, ey, 20);
+      this.tweens.add({
+        targets: blast, alpha: 0, duration: 350,
+        onComplete: () => blast.destroy(),
+      });
+      this.cameras.main.shake(220, 0.012);
+      // Radius damage on player
+      const dx = this.player.x - ex, dy = this.player.y - ey;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 80 && this.playerState.invincibleUntil <= this.time.now) {
+        this.damagePlayer(28);
+        const kx = Math.sign(dx) || 1;
+        this.player.setVelocity(kx * 360, -300);
+      }
+      g.destroy();
+    }
+
+    // v6: emit trails AND enforce BULLET_MAX_RANGE — bullets that have
+    // travelled more than maxRange pixels disappear. Range falloff makes
+    // bullets fade in alpha as they approach max range (shotgun feel).
     updateBullets() {
       const trailMul = this.bulletTimeActive ? 2 : 1;
       this.bullets.getChildren().forEach(b => {
         if (b.x < -50 || b.x > WORLD_W + 50 || b.y > GH + 100) {
           b.destroy(); return;
+        }
+        // Distance traveled since spawn
+        if (b.startX != null) {
+          const dist = Math.hypot(b.x - b.startX, b.y - b.startY);
+          if (dist > (b.maxRange || BULLET_MAX_RANGE)) {
+            b.destroy(); return;
+          }
+          // Range falloff — fade out as we approach max range
+          const t = dist / (b.maxRange || BULLET_MAX_RANGE);
+          if (t > 0.6) b.setAlpha(Math.max(0.15, 1 - (t - 0.6) * 2));
         }
         if (!b.isTongue) {
           this.bulletTrailFX.emitParticleAt(b.x, b.y, trailMul);
@@ -2114,6 +2701,12 @@
       this.enemyBullets.getChildren().forEach(b => {
         if (b.x < -50 || b.x > WORLD_W + 50 || b.y > GH + 100) {
           b.destroy(); return;
+        }
+        if (b.startX != null) {
+          const dist = Math.hypot(b.x - b.startX, b.y - b.startY);
+          if (dist > (b.maxRange || BULLET_MAX_RANGE)) {
+            b.destroy(); return;
+          }
         }
         this.enemyTrailFX.emitParticleAt(b.x, b.y, trailMul);
       });
@@ -2345,50 +2938,77 @@
     }
 
     // -----------------------------------------------------------------------
-    // v5: shoot fires the new circular glowing bullets, big muzzle flash at
-    // the gun barrel, and works for ALL characters with left click. Powerups
-    // (e.g. Connor's dual pistols) ADD on top — they never replace the shot.
+    // v6: shoot — bullets travel in a straight line with no gravity and
+    // disappear after BULLET_MAX_RANGE pixels. Connor uses a SHOTGUN that
+    // fires CONNOR_SHOTGUN_PELLETS bullets in a spread cone (slower fire
+    // rate). All other characters fire single pistol shots. Powerups still
+    // add on top — Connor's gangster mode adds a second cone offset.
     shoot(pointer) {
       const now = this.time.now;
-      if (now - this.lastShotTime < PLAYER_FIRE_CD) return;
+      const isConnor = this.selectedCharacter === 'connor';
+      const cd = isConnor ? CONNOR_SHOTGUN_CD : PLAYER_FIRE_CD;
+      if (now - this.lastShotTime < cd) return;
       this.lastShotTime = now;
 
-      // Compute direction from player to pointer (world coords)
+      // Direction from player to pointer
       const px = this.player.x;
       const py = this.player.y;
-      const wx = pointer.worldX;
-      const wy = pointer.worldY;
-      const dx = wx - px;
-      const dy = wy - py;
+      const dx = pointer.worldX - px;
+      const dy = pointer.worldY - py;
       const dist = Math.max(20, Math.hypot(dx, dy));
       const nx = dx / dist, ny = dy / dist;
-
       this.playerState.facing = nx >= 0 ? 1 : -1;
       this.player.setFlipX(nx < 0);
 
-      // Connor's gangster mode adds a second barrel — never replaces the shot
+      // Build the list of pellet angles for this shot
+      let angles;
+      if (isConnor) {
+        // Shotgun: 5 evenly-spaced pellets across the spread cone
+        angles = [];
+        const N = CONNOR_SHOTGUN_PELLETS;
+        for (let i = 0; i < N; i++) {
+          const t = (N === 1) ? 0 : (i / (N - 1)) - 0.5; // -0.5 .. 0.5
+          angles.push(t * CONNOR_SHOTGUN_SPREAD);
+        }
+      } else {
+        angles = [0];
+      }
+
+      // Gangster mode adds a second offset salvo (extra barrel)
       const dualPistols = this.powerupActive && this.powerupKind === 'connor';
-      const barrels = dualPistols ? [-0.08, 0.08] : [0];
-      barrels.forEach(off => {
-        const sx = px + nx * 28;
-        const sy = py + ny * 6 - 4;
-        const spread = rotateVec(nx, ny, off);
-        const b = this.bullets.create(sx, sy, 'bullet');
-        b.setVelocity(spread.x * BULLET_SPEED, spread.y * BULLET_SPEED);
-        b.setGravityY(BULLET_GRAVITY);
-        // Round bullet body
-        b.body.setSize(10, 10).setOffset(3, 3);
-        b.damage = this.playerState.damage;
-        b.isPlayer = true;
-        // Big bright muzzle flash at the gun barrel
-        this.muzzleFX.emitParticleAt(sx, sy, 8);
+      const offsets = dualPistols ? [-0.06, 0.06] : [0];
+
+      offsets.forEach(extra => {
+        angles.forEach(a => {
+          const spread = rotateVec(nx, ny, a + extra);
+          const sx = px + nx * 28;
+          const sy = py + ny * 6 - 4;
+          const b = this.bullets.create(sx, sy, 'bullet');
+          b.setVelocity(spread.x * BULLET_SPEED, spread.y * BULLET_SPEED);
+          b.body.setSize(10, 10).setOffset(3, 3);
+          // v6: track origin for distance falloff/cull
+          b.startX = sx;
+          b.startY = sy;
+          b.maxRange = BULLET_MAX_RANGE;
+          // Connor shotgun pellets do less damage individually but cluster
+          b.damage = isConnor
+            ? Math.floor(this.playerState.damage * 0.45)
+            : this.playerState.damage;
+          b.isPlayer = true;
+          b.isShotgun = isConnor;
+        });
       });
 
-      // Recoil camera shake — every shot
-      this.cameras.main.shake(70, 0.003);
+      // Big bright muzzle flash at the gun barrel — bigger for shotgun
+      const muzzleX = px + nx * 28;
+      const muzzleY = py + ny * 6 - 4;
+      this.muzzleFX.emitParticleAt(muzzleX, muzzleY, isConnor ? 14 : 8);
 
-      // Recoil kick (stronger when dual-wielding)
-      const recoilMul = dualPistols ? 1.6 : 1;
+      // Recoil camera shake — heavier for shotgun
+      this.cameras.main.shake(isConnor ? 110 : 70, isConnor ? 0.005 : 0.003);
+
+      // Recoil kick
+      const recoilMul = isConnor ? 1.8 : (dualPistols ? 1.6 : 1);
       this.player.setVelocityX(
         this.player.body.velocity.x + (-nx * 60) * recoilMul
       );
@@ -2626,14 +3246,31 @@
       });
     }
 
+    // v6: showWaveBanner — "WAVE n" big text + the location title under it
+    // (e.g. "NORTHERN QUARTER", "PICCADILLY GARDENS", etc.). Locations only
+    // change on the milestone waves — others keep showing the previous one.
     showWaveBanner(n) {
-      const banner = this.add.text(GW / 2, GH / 2 - 20, 'WAVE ' + n, {
+      // Find the most recent milestone <= n
+      let locWave = 1;
+      Object.keys(WAVE_LOCATIONS).forEach(k => {
+        const kn = parseInt(k, 10);
+        if (kn <= n && kn > locWave) locWave = kn;
+      });
+      const locText = WAVE_LOCATIONS[locWave];
+
+      const banner = this.add.text(GW / 2, GH / 2 - 30, 'WAVE ' + n, {
         fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '120px',
         color: '#ff3333', stroke: '#330000', strokeThickness: 8,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0).setScale(0.5);
 
-      const sub = this.add.text(GW / 2, GH / 2 + 60, 'INCOMING', {
-        fontFamily: 'monospace', fontSize: '20px', color: '#ffaa44',
+      const loc = this.add.text(GW / 2, GH / 2 + 50, locText, {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '32px',
+        color: '#ffaa44', stroke: '#221100', strokeThickness: 4,
+        letterSpacing: 4,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0);
+
+      const sub = this.add.text(GW / 2, GH / 2 + 90, 'INCOMING', {
+        fontFamily: 'monospace', fontSize: '16px', color: '#ff8866',
         letterSpacing: 6,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(180).setAlpha(0);
 
@@ -2643,13 +3280,16 @@
         duration: 400, ease: 'Back.easeOut',
       });
       this.tweens.add({
-        targets: sub, alpha: { from: 0, to: 1 }, duration: 400, delay: 200,
+        targets: loc, alpha: { from: 0, to: 1 }, duration: 400, delay: 150,
+      });
+      this.tweens.add({
+        targets: sub, alpha: { from: 0, to: 1 }, duration: 400, delay: 300,
       });
       this.cameras.main.shake(160, 0.004);
-      this.time.delayedCall(1500, () => {
+      this.time.delayedCall(1800, () => {
         this.tweens.add({
-          targets: [banner, sub], alpha: 0, duration: 400,
-          onComplete: () => { banner.destroy(); sub.destroy(); },
+          targets: [banner, loc, sub], alpha: 0, duration: 400,
+          onComplete: () => { banner.destroy(); loc.destroy(); sub.destroy(); },
         });
       });
     }
@@ -2840,7 +3480,7 @@
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, CharacterSelectScene, GameScene, DeathScene, WinScene],
+    scene: [BootScene, StoryIntroScene, CharacterSelectScene, GameScene, DeathScene, WinScene],
   };
 
   new Phaser.Game(config);
