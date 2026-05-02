@@ -96,7 +96,7 @@
   const PLAYER_FIRE_CD = 180;// pistol cooldown (default for non-Connor)
   const CONNOR_SHOTGUN_CD = 600; // v6: Connor's shotgun cooldown
   const CONNOR_SHOTGUN_PELLETS = 5; // v6: pellets per shotgun blast
-  const CONNOR_SHOTGUN_SPREAD = 0.55; // v6: total spread cone (radians)
+  const CONNOR_SHOTGUN_SPREAD = 0.28; // v8: tighter cone (was 0.55) — pellets cluster on distant/vertical targets instead of spraying
   const BULLET_TIME_FACTOR = 0.25; // world timescale during bullet time
   const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
   const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
@@ -250,119 +250,70 @@
   // Used by the character-select cards AND for generating in-game player texture.
   // =============================================================================
 
-  // v7: Connor — proper TWO arms in normal mode, gangster mode = American
-  // gangster (NBA jersey, baggy jeans, red Jordans, red snapback, gold chain,
-  // black aviator shades). The rotating gun arm overlay still covers the
-  // right arm during gameplay; the base sprite always shows both arms so he
-  // looks correct on character select cards and HUD portrait.
+  // v8: Connor — back to v6 simple silhouette. Dark navy jeans, white
+  // trainers w/ red flash, dark grey jacket (or dark navy jacket in
+  // Gangster Mode), curly brown hair, peach skin. NO snapback, NO jersey,
+  // NO dual-pistol stub. Gangster Mode swaps in aviator shades + gold
+  // chain only — same outfit silhouette, just a colour shift + accessories.
+  // Both arms are visible at all times (the v7 fix to the old "stub" bug
+  // is preserved). The rotating gun-arm overlay still draws on top during
+  // gameplay so the right arm + pistol track the cursor.
   function drawConnor(g, cx, cy, opt = {}) {
     const skin = 0xf0c49a;
-    // Legs — gangster wears baggy jeans (wider stance), normal navy jeans
-    g.fillStyle(opt.gangster ? 0x1a2030 : 0x1b2438);
-    g.fillEllipse(cx - 8, cy + 18, opt.gangster ? 14 : 12, 30);
-    g.fillEllipse(cx + 8, cy + 18, opt.gangster ? 14 : 12, 30);
-    // Trainers — gangster: red Jordans w/ white sole; normal: white w/ red flash
-    if (opt.gangster) {
-      g.fillStyle(0xc62828); // Jordan red upper
-      g.fillEllipse(cx - 8, cy + 33, 16, 8);
-      g.fillEllipse(cx + 8, cy + 33, 16, 8);
-      g.fillStyle(0xffffff); // white sole
-      g.fillRect(cx - 16, cy + 35, 16, 2);
-      g.fillRect(cx,      cy + 35, 16, 2);
-      g.fillStyle(0x000000); // jumpman silhouette dot
-      g.fillCircle(cx - 8, cy + 32, 1.4);
-      g.fillCircle(cx + 8, cy + 32, 1.4);
-    } else {
-      g.fillStyle(0xf2f2f2);
-      g.fillEllipse(cx - 7, cy + 33, 14, 7);
-      g.fillEllipse(cx + 7, cy + 33, 14, 7);
-      g.fillStyle(0xc62828);
-      g.fillRect(cx - 13, cy + 33, 12, 2);
-      g.fillRect(cx + 1,  cy + 33, 12, 2);
-    }
-    // Torso — gangster: oversized navy/black NBA-style jersey; normal: dark grey jacket
-    if (opt.gangster) {
-      // Jersey body — wider, more rectangular
-      g.fillStyle(0x0a1230);
-      g.fillRect(cx - 18, cy - 14, 36, 28);
-      // Jersey neckline (V cut)
-      g.fillStyle(skin);
-      g.fillTriangle(cx - 5, cy - 14, cx + 5, cy - 14, cx, cy - 6);
-      // Jersey trim/piping (white stripe down side)
-      g.fillStyle(0xffffff);
-      g.fillRect(cx - 18, cy - 14, 2, 28);
-      g.fillRect(cx + 16, cy - 14, 2, 28);
-      // Big jersey number "23"
-      g.fillStyle(0xffffff);
-      g.fillRect(cx - 6, cy - 4, 4, 8);
-      g.fillRect(cx + 2, cy - 4, 4, 8);
-      g.fillRect(cx - 6, cy - 4, 10, 2);
-      g.fillRect(cx - 6, cy + 2, 10, 2);
-    } else {
-      g.fillStyle(0x262626);
-      g.fillEllipse(cx, cy - 2, 32, 30);
-      // Jacket lapel V
-      g.fillStyle(0x141414);
-      g.fillTriangle(cx - 8, cy - 14, cx + 8, cy - 14, cx, cy + 4);
-    }
-    // Gold chain — gangster only
+    const jacket = opt.gangster ? 0x0a1230 : 0x262626;
+    const jacketShadow = opt.gangster ? 0x05081a : 0x141414;
+    // Legs — baggy navy jeans
+    g.fillStyle(0x1b2438);
+    g.fillEllipse(cx - 7, cy + 18, 12, 30);
+    g.fillEllipse(cx + 7, cy + 18, 12, 30);
+    // White trainers with red flash
+    g.fillStyle(0xf2f2f2);
+    g.fillEllipse(cx - 7, cy + 33, 14, 7);
+    g.fillEllipse(cx + 7, cy + 33, 14, 7);
+    g.fillStyle(0xc62828);
+    g.fillRect(cx - 13, cy + 33, 12, 2);
+    g.fillRect(cx + 1,  cy + 33, 12, 2);
+    // Torso — dark grey jacket (normal) or dark navy jacket (gangster)
+    g.fillStyle(jacket);
+    g.fillEllipse(cx, cy - 2, 32, 30);
+    // Jacket lapel V — slightly darker than torso
+    g.fillStyle(jacketShadow);
+    g.fillTriangle(cx - 8, cy - 14, cx + 8, cy - 14, cx, cy + 4);
+    // Gold chain — gangster only (small linked beads + pendant)
     if (opt.gangster) {
       g.fillStyle(0xffd700);
-      g.fillCircle(cx - 5, cy - 6, 1.5);
-      g.fillCircle(cx - 2, cy - 4, 1.5);
-      g.fillCircle(cx + 2, cy - 4, 1.5);
-      g.fillCircle(cx + 5, cy - 6, 1.5);
-      g.fillCircle(cx, cy - 1, 3.5); // pendant
+      g.fillCircle(cx - 5, cy - 8, 1.5);
+      g.fillCircle(cx - 2, cy - 6, 1.5);
+      g.fillCircle(cx + 2, cy - 6, 1.5);
+      g.fillCircle(cx + 5, cy - 8, 1.5);
+      g.fillCircle(cx, cy - 4, 3);
     }
-    // LEFT arm — bare skin sleeve in jersey (gangster) or jacket sleeve (normal)
-    g.fillStyle(opt.gangster ? skin : 0x262626);
-    g.fillEllipse(cx - 18, cy + 2, 8, 22);
-    // Left hand
+    // LEFT arm — jacket sleeve, hand peeks out at the bottom
+    g.fillStyle(jacket);
+    g.fillEllipse(cx - 16, cy - 2, 8, 22);
     g.fillStyle(skin);
-    g.fillCircle(cx - 18, cy + 14, 3.5);
-    // RIGHT arm — visible too (in gangster mode both holding pistols; in
-    // normal mode the rotating gun-arm overlay covers this during gameplay
-    // but the static sprite still shows a real arm so character select looks
-    // correct). Bare skin in gangster, jacket sleeve in normal.
-    g.fillStyle(opt.gangster ? skin : 0x262626);
-    g.fillEllipse(cx + 18, cy + 2, 8, 22);
+    g.fillCircle(cx - 16, cy + 10, 3);
+    // RIGHT arm — also drawn as a real arm (the rotating gun-arm overlay
+    // covers it during gameplay; the static sprite still needs an arm so
+    // character select cards and HUD portraits look correct).
+    g.fillStyle(jacket);
+    g.fillEllipse(cx + 16, cy - 2, 8, 22);
     g.fillStyle(skin);
-    g.fillCircle(cx + 18, cy + 14, 3.5);
-    // Gangster: hint of a second pistol in the left hand
-    if (opt.gangster) {
-      g.fillStyle(0x111111);
-      g.fillRect(cx - 24, cy + 12, 8, 4);
-      g.fillStyle(0x2a2a2a);
-      g.fillRect(cx - 24, cy + 11, 8, 1);
-    }
+    g.fillCircle(cx + 16, cy + 10, 3);
     // Neck
     g.fillStyle(skin);
     g.fillRect(cx - 3, cy - 16, 6, 5);
-    // Head
+    // Head — rounded
     g.fillStyle(skin);
     g.fillCircle(cx, cy - 22, 10);
-    // Hair / hat
-    if (opt.gangster) {
-      // Red snapback cap
-      g.fillStyle(0xc62828);
-      g.fillEllipse(cx, cy - 30, 24, 8); // crown
-      g.fillRect(cx - 12, cy - 30, 24, 4);
-      // Peak (forward brim)
-      g.fillStyle(0x8a1a1a);
-      g.fillRect(cx - 4, cy - 27, 16, 3);
-      // Cap logo dot
-      g.fillStyle(0xffffff);
-      g.fillRect(cx - 1, cy - 30, 2, 2);
-    } else {
-      // Brown curly wavy hair
-      g.fillStyle(0x6b4a28);
-      g.fillEllipse(cx, cy - 30, 24, 11);
-      g.fillEllipse(cx + 5, cy - 33, 10, 7);
-      g.fillEllipse(cx - 8, cy - 28, 6, 5);
-    }
+    // Curly wavy brown hair (always — no snapback)
+    g.fillStyle(0x6b4a28);
+    g.fillEllipse(cx, cy - 30, 24, 11);
+    g.fillEllipse(cx + 5, cy - 33, 10, 7);
+    g.fillEllipse(cx - 8, cy - 28, 6, 5);
     // Eyes / shades
     if (opt.gangster) {
-      // Black aviator shades
+      // Black aviator-style shades
       g.fillStyle(0x000000);
       g.fillRect(cx - 9, cy - 23, 18, 5);
       g.fillStyle(0x444444);
@@ -563,48 +514,9 @@
     }
   }
 
-  function drawAaron(g, cx, cy, opt = {}) {
-    if (opt.goblin) {
-      // Goblin morph — hunched 45deg, claws, beak, red eyes
-      // Translate / shift body forward
-      const skin = 0x6a8a5a;
-      // Squat legs (bent)
-      g.fillStyle(0x3a3a2a);
-      g.fillEllipse(cx - 8, cy + 22, 11, 18);
-      g.fillEllipse(cx + 8, cy + 22, 11, 18);
-      // Clawed feet
-      g.fillStyle(0x2a1a0a);
-      g.fillEllipse(cx - 8, cy + 32, 14, 6);
-      g.fillEllipse(cx + 8, cy + 32, 14, 6);
-      // Hunched torso — angled forward
-      g.fillStyle(0x556644);
-      g.fillEllipse(cx + 4, cy + 4, 30, 22);
-      // Long elongated arms dragging near ground
-      g.fillStyle(skin);
-      g.fillEllipse(cx + 14, cy + 14, 8, 26);
-      g.fillEllipse(cx - 8, cy + 14, 8, 26);
-      // Claws at ends
-      g.fillStyle(0x2a1a0a);
-      g.fillTriangle(cx + 14, cy + 26, cx + 10, cy + 30, cx + 18, cy + 30);
-      g.fillTriangle(cx - 8, cy + 26, cx - 12, cy + 30, cx - 4, cy + 30);
-      // Forward-jutting head
-      g.fillStyle(skin);
-      g.fillCircle(cx + 8, cy - 8, 10);
-      // Pointy beak nose
-      g.fillStyle(0x4a5a3a);
-      g.fillTriangle(cx + 16, cy - 8, cx + 24, cy - 6, cx + 16, cy - 4);
-      // Glowing red eyes
-      g.fillStyle(0xff2222);
-      g.fillCircle(cx + 5, cy - 10, 2);
-      g.fillCircle(cx + 11, cy - 10, 2);
-      // Pointy ears
-      g.fillStyle(skin);
-      g.fillTriangle(cx + 2, cy - 14, cx - 2, cy - 22, cx + 6, cy - 16);
-      // Jagged teeth
-      g.fillStyle(0xeeddaa);
-      g.fillTriangle(cx + 8, cy - 4, cx + 10, cy - 1, cx + 12, cy - 4);
-      return;
-    }
+  // v8: opt.goblin branch removed — drawAaronGoblin is the canonical goblin
+  // drawer now (used to bake player_aaron_goblin texture in makeAllTextures).
+  function drawAaron(g, cx, cy) {
     // v7: Normal finance-bro Aaron — sleek swept-back quiff, defined brows,
     // strong jaw, light-blue shirt, tan chinos, brown loafers.
     const skin = 0xe8c090;
@@ -946,14 +858,23 @@
   }
 
   // =============================================================================
-  // v7 AUDIO — synthesised SFX + ambient drone via raw Web Audio API.
-  // No external files. Lazy-init on first user gesture (browsers require a
-  // user interaction before AudioContext can play).
+  // v8 AUDIO — richer synth via raw Web Audio API. Layered tones + filtered
+  // noise + a tiny built-in reverb give every SFX a bit of body without
+  // needing external files. Lazy-init on first user gesture so browsers
+  // allow the AudioContext to start.
+  //
+  // Signal path:
+  //   each one-shot ─► [filters/gains] ─► reverbBus + masterGain
+  //                                       ─► compressor ─► destination
+  // The compressor stops simultaneous sounds clipping each other.
   // =============================================================================
   const AUDIO = {
     ctx: null,
     ambient: null,
     masterGain: null,
+    compressor: null,
+    reverbBus: null,    // wet send for kill/wave-clear
+    noiseBuffer: null,  // pre-baked white noise sample, reused everywhere
 
     init() {
       if (this.ctx) return;
@@ -962,10 +883,45 @@
         if (!Ctx) return;
         this.ctx = new Ctx();
       } catch (e) { return; }
-      // Master gain — global volume knob
+
+      // Compressor catches loud peaks (multi-shot moments, explosions).
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.value = -16;
+      this.compressor.knee.value = 18;
+      this.compressor.ratio.value = 4;
+      this.compressor.attack.value = 0.005;
+      this.compressor.release.value = 0.18;
+      this.compressor.connect(this.ctx.destination);
+
+      // Master gain feeds the compressor — global volume knob lives here
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = 0.7;
-      this.masterGain.connect(this.ctx.destination);
+      this.masterGain.connect(this.compressor);
+
+      // Tiny reverb send: short feedback delay → low-pass → master.
+      // Used for kill / wave clear so they feel impactful without bleeding
+      // into every sound. Sounds opt-in via `wet` arg on _envelope().
+      const delay = this.ctx.createDelay(0.3);
+      delay.delayTime.value = 0.08;
+      const fb = this.ctx.createGain();
+      fb.gain.value = 0.3;
+      const tone = this.ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 2200;
+      const wetGain = this.ctx.createGain();
+      wetGain.gain.value = 1.0;
+      // delay → feedback loop → tone → wet → master
+      delay.connect(fb).connect(delay);
+      delay.connect(tone).connect(wetGain).connect(this.masterGain);
+      this.reverbBus = delay;
+
+      // Pre-bake 1s of white noise — reused for every noisy sound
+      const sr = this.ctx.sampleRate;
+      const buf = this.ctx.createBuffer(1, sr, sr);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < sr; i++) ch[i] = Math.random() * 2 - 1;
+      this.noiseBuffer = buf;
+
       this._startAmbient();
     },
 
@@ -989,50 +945,119 @@
       this.ambient = { osc, gain, lfo };
     },
 
+    // Build an AD envelope on a gain node and route it dry to master
+    // (and optionally a wet copy to the reverb bus). Returns the gain
+    // node so the caller can connect their source to it.
+    _envelope(durationSec, peak, wet) {
+      const t = this.ctx.currentTime;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + durationSec);
+      g.connect(this.masterGain);
+      if (wet && wet > 0 && this.reverbBus) {
+        const send = this.ctx.createGain();
+        send.gain.value = wet;
+        g.connect(send).connect(this.reverbBus);
+      }
+      return g;
+    },
+
     // One-shot synth tone with optional pitch glide.
-    // freqA -> freqB over durationMs, simple AD envelope.
-    beep(freqA, freqB, durationMs, volume, type) {
+    beep(freqA, freqB, durationMs, volume, type, wet) {
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
       const dur = durationMs / 1000;
       const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
       osc.type = type || 'sine';
       osc.frequency.setValueAtTime(freqA, t);
       if (freqB && freqB !== freqA) {
-        // exponential ramp can't hit 0; clamp
         osc.frequency.exponentialRampToValueAtTime(
           Math.max(20, freqB), t + dur);
       }
-      // Quick attack, exponential release
       const v = volume == null ? 0.15 : volume;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(v, t + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.connect(gain).connect(this.masterGain);
+      const env = this._envelope(dur, v, wet);
+      osc.connect(env);
       osc.start(t);
       osc.stop(t + dur + 0.02);
     },
 
-    // Layered burst — used for richer effects (kill, wave clear)
-    chord(freqs, durationMs, volume, type) {
+    // Filtered noise burst — used as the punchy layer under shots/hits.
+    // pitchHz controls the lowpass cutoff. If sweepHz is set, the cutoff
+    // glides toward it for a "wow" colour change (good for kills).
+    noise(durationMs, volume, pitchHz, sweepHz, wet) {
+      if (!this.ctx || !this.noiseBuffer) return;
+      const t = this.ctx.currentTime;
+      const dur = durationMs / 1000;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      src.loop = true;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(pitchHz || 1500, t);
+      if (sweepHz != null) {
+        filter.frequency.exponentialRampToValueAtTime(
+          Math.max(40, sweepHz), t + dur);
+      }
+      filter.Q.value = 0.7;
+      const env = this._envelope(dur, volume == null ? 0.18 : volume, wet);
+      src.connect(filter).connect(env);
+      src.start(t);
+      src.stop(t + dur + 0.02);
+    },
+
+    // Layered burst — used for chord stacks (powerup activate, fanfare)
+    chord(freqs, durationMs, volume, type, wet) {
       if (!this.ctx) return;
       freqs.forEach((f, i) => {
-        this.beep(f, f, durationMs, (volume || 0.1) * (1 - i * 0.15), type);
+        this.beep(f, f, durationMs, (volume || 0.1) * (1 - i * 0.15), type, wet);
       });
     },
 
-    // Friendly named one-shots — call these from gameplay code
-    shot()       { this.beep(800, 800, 200, 0.10, 'square'); },
-    enemyHit()   { this.beep(400, 400, 150, 0.10, 'sawtooth'); },
-    kill()       { this.beep(600, 200, 300, 0.18, 'square'); },
-    jump()       { this.beep(600, 600, 100, 0.08, 'sine'); },
-    pickup()     { this.beep(400, 800, 400, 0.14, 'sine'); },
-    waveClear()  { this.beep(800, 1200, 600, 0.18, 'square'); },
-    explosion()  { this.beep(180, 40, 450, 0.22, 'sawtooth'); },
-    powerupActivate() { this.chord([400, 600, 800], 350, 0.12, 'square'); },
-    playerHurt() { this.beep(240, 120, 200, 0.16, 'square'); },
-    death()      { this.beep(400, 60, 1100, 0.25, 'sawtooth'); },
+    // ---- Friendly named one-shots — called from gameplay code ----
+
+    // Pistol: square tone + 30ms filtered noise burst layered for "thump"
+    shot() {
+      this.beep(820, 700, 130, 0.09, 'square');
+      this.noise(40, 0.18, 1500);
+    },
+    // Enemy hit: short noise crackle with sharp pitch sweep
+    enemyHit() {
+      this.noise(120, 0.16, 2200, 600);
+      this.beep(360, 220, 90, 0.06, 'square');
+    },
+    // Kill: noise-driven thump + descending tone with a wet reverb send
+    kill() {
+      this.noise(220, 0.22, 1800, 200, 0.2);
+      this.beep(500, 160, 320, 0.16, 'square', 0.15);
+    },
+    jump() { this.beep(560, 720, 110, 0.08, 'sine'); },
+    pickup() { this.beep(440, 880, 380, 0.13, 'sine'); },
+    // Wave clear: 3-note arcade fanfare (C5, E5, G5) with reverb tail
+    waveClear() {
+      const ctx = this.ctx; if (!ctx) return;
+      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+      notes.forEach((f, i) => {
+        setTimeout(() => {
+          this.beep(f, f, 220, 0.16, 'square', 0.25);
+        }, i * 130);
+      });
+    },
+    explosion() {
+      this.noise(380, 0.28, 800, 80, 0.25);
+      this.beep(180, 40, 380, 0.18, 'sawtooth');
+    },
+    powerupActivate() {
+      this.chord([400, 600, 800], 320, 0.11, 'square', 0.15);
+    },
+    playerHurt() {
+      this.noise(80, 0.18, 1200, 400);
+      this.beep(260, 120, 180, 0.13, 'square');
+    },
+    death() {
+      this.beep(420, 60, 1100, 0.22, 'sawtooth', 0.3);
+      this.noise(700, 0.18, 900, 80, 0.2);
+    },
   };
 
   // =============================================================================
@@ -2532,15 +2557,28 @@
       this.physics.add.collider(this.enemies, this.groundBody);
       this.physics.add.collider(this.enemies, this.platforms);
 
-      // Bullets vs ground/platforms (destroy on hit)
-      const hitSolid = (b) => {
+      // Bullets vs ground/platforms (destroy on hit).
+      // v8: Bullets fired UPWARD (negative vy) pass through one-way platforms
+      // so the player can shoot up at enemies standing on rooftops. Bullets
+      // moving downward or sideways still get destroyed on platform contact.
+      // Ground collisions always destroy.
+      const hitGround = (b) => {
+        if (!b.body) return;
         this.sparkFX.emitParticleAt(b.x, b.y, 5);
         b.destroy();
       };
-      this.physics.add.collider(this.bullets, this.groundBody, hitSolid);
-      this.physics.add.collider(this.bullets, this.platforms, hitSolid);
-      this.physics.add.collider(this.enemyBullets, this.groundBody, hitSolid);
-      this.physics.add.collider(this.enemyBullets, this.platforms, hitSolid);
+      const hitPlatform = (b) => {
+        if (!b.body) return;
+        // Only destroy if travelling downward — upward shots tunnel through
+        if (b.body.velocity.y > 0) {
+          this.sparkFX.emitParticleAt(b.x, b.y, 5);
+          b.destroy();
+        }
+      };
+      this.physics.add.collider(this.bullets, this.groundBody, hitGround);
+      this.physics.add.collider(this.bullets, this.platforms, hitPlatform);
+      this.physics.add.collider(this.enemyBullets, this.groundBody, hitGround);
+      this.physics.add.collider(this.enemyBullets, this.platforms, hitPlatform);
 
       // v6: Grenades bounce off ground/platforms (don't destroy on impact)
       this.physics.add.collider(this.grenades, this.groundBody);
@@ -2830,35 +2868,30 @@
         }
       }
 
-      // v7: Real drop-through. When S is JUST pressed in mid-air, find every
-      // platform the player is currently standing on (or just above) and
-      // disable its top-face collision for 300ms so the player falls
-      // straight through. checkCollision.up restored after the timer.
-      const sJustPressedAir = sJustPressed && !onGround;
-      if (sJustPressedAir && !ps.isSliding) {
+      // v8: Drop-through — fires when S is just-pressed AND the player is
+      // standing on something. We then find any one-way platform the player
+      // is resting on and disable its top-face collision for 300ms so the
+      // player slips straight through. The world ground (groundBody) isn't
+      // in this.platforms, so this can't drop you off the street.
+      const sCanDrop = sJustPressed && onGround;
+      if (sCanDrop && !ps.isSliding) {
         const playerBottom = this.player.body.bottom;
         const playerLeft   = this.player.body.left;
         const playerRight  = this.player.body.right;
-        let droppedAny = false;
         this.platforms.children.iterate(plat => {
           if (!plat || !plat.body) return;
           const pTop    = plat.body.top;
           const pLeft   = plat.body.left;
           const pRight  = plat.body.right;
-          // Within ~6px above the platform top + horizontally overlapping
+          // Within ~8px of the platform top + horizontally overlapping
           if (playerBottom <= pTop + 8 && playerBottom >= pTop - 4 &&
               playerRight  > pLeft && playerLeft < pRight) {
             plat.body.checkCollision.up = false;
-            droppedAny = true;
             this.time.delayedCall(300, () => {
               if (plat && plat.body) plat.body.checkCollision.up = true;
             });
           }
         });
-        if (droppedAny) {
-          // Boost downward so the drop feels intentional
-          this.player.setVelocityY(Math.max(180, this.player.body.velocity.y));
-        }
       }
 
       // After a dive, restore rotation once on ground
@@ -2866,14 +2899,11 @@
         this.player.setRotation(0);
       }
 
-      // v5 Charlie Fatter: clamp to ground level — even if knocked up, snap
-      // back down so he can't reach platforms.
-      if (this.powerupActive && this.powerupKind === 'charlie') {
-        if (this.player.y < GROUND_Y - 50) {
-          this.player.y = GROUND_Y - 50;
-          this.player.body.velocity.y = Math.max(0, this.player.body.velocity.y);
-        }
-      }
+      // v8: Charlie clamp removed — the platform collider is already
+      // disabled during Fatter Mode (so he can't reach platforms anyway),
+      // and the world ground collider keeps him on the street. The old
+      // clamp held him 18px above ground, causing a visible drop on
+      // deactivation. Gravity handles it correctly without help now.
 
       // v5 Connor: position + rotate the visible gun arm to follow the mouse
       if (this.connorArm && this.selectedCharacter === 'connor') {
@@ -3309,6 +3339,9 @@
           if (this.playerPlatformCollider) {
             this.playerPlatformCollider.active = true;
           }
+          // v8: clear residual invincibility (activation set it to ~now +
+          // powerupTimer + 200ms, which would otherwise leak into normal play)
+          this.playerState.invincibleUntil = 0;
           break;
         case 'finley':
           if (this.finleyGlow) { this.finleyGlow.destroy(); this.finleyGlow = null; }
@@ -3395,9 +3428,13 @@
         });
       });
 
-      // v7: shot SFX — slightly lower pitch + louder for shotgun
-      if (isConnor) AUDIO.beep(500, 350, 250, 0.14, 'square');
-      else AUDIO.shot();
+      // v8: shot SFX — shotgun gets a bigger noise-led blast
+      if (isConnor) {
+        AUDIO.noise(180, 0.32, 2200, 200, 0.15);
+        AUDIO.beep(360, 200, 220, 0.10, 'square');
+      } else {
+        AUDIO.shot();
+      }
 
       // Big bright muzzle flash at the gun barrel — bigger for shotgun
       const muzzleX = px + nx * 28;
@@ -3414,23 +3451,38 @@
       );
     }
 
-    // v5 Frog mode: bright GREEN horizontal tongue projectile
+    // v8 Frog mode: tongue now aims toward the mouse cursor (was hardcoded
+    // horizontal). Useful against airborne and platform-perched enemies.
+    // Sprite is rotated to face the launch direction.
     shootTongue() {
-      const dir = this.playerState.facing || 1;
-      const sx = this.player.x + dir * 28;
-      const sy = this.player.y + 2;
+      const ptr = this.input.activePointer;
+      const px = this.player.x;
+      const py = this.player.y + 2;
+      const dx = ptr.worldX - px;
+      const dy = ptr.worldY - py;
+      const dist = Math.max(20, Math.hypot(dx, dy));
+      const nx = dx / dist, ny = dy / dist;
+      const ang = Math.atan2(ny, nx);
+      // Update facing so other systems know which way Frog faced
+      this.playerState.facing = nx >= 0 ? 1 : -1;
+      this.player.setFlipX(nx < 0);
+
+      const sx = px + nx * 28;
+      const sy = py + ny * 28;
       const t = this.bullets.create(sx, sy, 'tongue');
-      t.setVelocity(dir * 1500, 0);
+      t.setVelocity(nx * 1500, ny * 1500);
       t.body.setAllowGravity(false);
       t.body.setSize(28, 8).setOffset(2, 3);
-      t.setFlipX(dir < 0);
+      t.setRotation(ang);
       t.damage = 9999; // insta-kills standard enemies
       t.isTongue = true;
       t.isPlayer = true;
+      t.startX = sx; t.startY = sy;
+      t.maxRange = BULLET_MAX_RANGE;
       // Green burst at the launch point
       this.muzzleFX.emitParticleAt(sx, sy, 6);
       this.cameras.main.shake(40, 0.002);
-      // v7: tongue SFX — wet glug sweep
+      // Tongue SFX — wet glug sweep
       AUDIO.beep(900, 300, 300, 0.14, 'sawtooth');
       this.time.delayedCall(700, () => { if (t.active) t.destroy(); });
     }
@@ -3783,73 +3835,8 @@
     }
   }
 
-  // =============================================================================
-  // SCENE: WIN
-  // =============================================================================
-  class WinScene extends Phaser.Scene {
-    constructor() { super({ key: 'Win' }); }
-
-    init(data) {
-      this.payload = data || { kills: 0, total: 0, character: 'connor' };
-    }
-
-    create() {
-      this.cameras.main.setBackgroundColor('#051a0a');
-
-      const green = this.add.rectangle(0, 0, GW, GH, 0x00aa55)
-        .setOrigin(0, 0).setAlpha(0.12);
-
-      const t = 'CARNAGE COMPLETE';
-      [
-        { thick: 22, a: 0.15 }, { thick: 14, a: 0.3 }, { thick: 6, a: 0.7 },
-      ].forEach(l => {
-        this.add.text(GW / 2, GH / 2 - 30, t, {
-          fontFamily: 'Impact', fontSize: '80px',
-          color: '#00cc66', stroke: '#00cc66', strokeThickness: l.thick,
-        }).setOrigin(0.5).setAlpha(l.a);
-      });
-      const main = this.add.text(GW / 2, GH / 2 - 30, t, {
-        fontFamily: 'Impact', fontSize: '80px',
-        color: '#33ff88', stroke: '#002211', strokeThickness: 3,
-      }).setOrigin(0.5);
-
-      this.add.text(GW / 2, GH / 2 + 40,
-        'KILLS: ' + this.payload.kills + ' / ' + this.payload.total, {
-          fontFamily: 'Impact', fontSize: '34px',
-          color: '#ffffff', stroke: '#225544', strokeThickness: 2,
-        }).setOrigin(0.5);
-
-      this.add.text(GW / 2, GH / 2 + 82,
-        'AS ' + CHARACTERS[this.payload.character].name, {
-          fontFamily: 'monospace', fontSize: '14px', color: '#7aa',
-          letterSpacing: 3,
-        }).setOrigin(0.5);
-
-      const again = this.add.text(GW / 2, GH - 90, 'CLICK TO PLAY AGAIN', {
-        fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
-        stroke: '#005533', strokeThickness: 2, letterSpacing: 3,
-      }).setOrigin(0.5);
-      this.tweens.add({
-        targets: again, alpha: { from: 0.4, to: 1 },
-        duration: 700, yoyo: true, repeat: -1,
-      });
-
-      this.add.text(GW / 2, GH - 50, 'ESC FOR CHARACTER SELECT', {
-        fontFamily: 'monospace', fontSize: '12px', color: '#446655',
-        letterSpacing: 2,
-      }).setOrigin(0.5);
-
-      main.setScale(0.6);
-      this.tweens.add({ targets: main, scale: 1, duration: 700, ease: 'Back.easeOut' });
-
-      this.input.on('pointerdown', () => {
-        this.scene.start('Game', { character: this.payload.character });
-      });
-      this.input.keyboard.on('keydown-ESC', () => {
-        this.scene.start('CharacterSelect');
-      });
-    }
-  }
+  // v8: WinScene removed — waves are infinite, the game ends only on death,
+  // so the win path was unreachable.
 
   // =============================================================================
   // HELPERS
@@ -3889,7 +3876,7 @@
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, StoryIntroScene, CharacterSelectScene, GameScene, DeathScene, WinScene],
+    scene: [BootScene, StoryIntroScene, CharacterSelectScene, GameScene, DeathScene],
   };
 
   new Phaser.Game(config);
