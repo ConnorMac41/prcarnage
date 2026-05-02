@@ -101,13 +101,14 @@
   const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
   const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
 
-  // v6: Wave location titles — shown at the start of certain waves
+  // v7: Wave location titles — change every 2 waves
   const WAVE_LOCATIONS = {
     1:  'NORTHERN QUARTER',
-    3:  'ARNDALE BACK ALLEYS',
-    5:  'PICCADILLY GARDENS',
+    3:  'SPINNING FIELD',
+    5:  'CITY CENTRE',
     7:  'CURRY MILE',
-    10: 'THE PRINTWORKS — FINAL STAND',
+    9:  'ARNDALE',
+    11: 'THE PRINTWORKS',
   };
 
   // v6: Difficulty scaling per wave
@@ -187,14 +188,17 @@
   // =============================================================================
   // WORLD CONTENT — neon signs, platforms, enemy spawn points
   // =============================================================================
+  // v7: Sign y values raised onto building walls. With scrollFactor 0.45
+  // (matching mid-buildings), these now sit ON the wall and stay glued to
+  // the building as the camera moves rather than floating in the sky.
   const NEON_SIGNS = [
-    { x: 300,  y: 180, text: 'AFFLECKS',    color: 0xff2288 },
-    { x: 720,  y: 230, text: 'PRINTWORKS',  color: 0x33ffbb },
-    { x: 1120, y: 160, text: 'ARNDALE',     color: 0xffaa22 },
-    { x: 1520, y: 210, text: 'CURRY MILE',  color: 0xff4422 },
-    { x: 1900, y: 175, text: 'PICCADILLY',  color: 0x33aaff },
-    { x: 2300, y: 230, text: "SPOONS",      color: 0xffff33 },
-    { x: 2700, y: 190, text: 'KEBAB',       color: 0xff33dd },
+    { x: 300,  y: 360, text: 'AFFLECKS',    color: 0xff2288 },
+    { x: 720,  y: 410, text: 'PRINTWORKS',  color: 0x33ffbb },
+    { x: 1120, y: 340, text: 'ARNDALE',     color: 0xffaa22 },
+    { x: 1520, y: 390, text: 'CURRY MILE',  color: 0xff4422 },
+    { x: 1900, y: 355, text: 'PICCADILLY',  color: 0x33aaff },
+    { x: 2300, y: 410, text: "SPOONS",      color: 0xffff33 },
+    { x: 2700, y: 370, text: 'KEBAB',       color: 0xff33dd },
   ];
 
   // v6: Many more platforms at varying heights — proper Mario/Broforce style
@@ -246,67 +250,123 @@
   // Used by the character-select cards AND for generating in-game player texture.
   // =============================================================================
 
-  // v5: Connor — single curly wavy hair blob (no double hair), gangster
-  // outfit is dark navy with gold chain + sunglasses (no yellow tint anywhere)
+  // v7: Connor — proper TWO arms in normal mode, gangster mode = American
+  // gangster (NBA jersey, baggy jeans, red Jordans, red snapback, gold chain,
+  // black aviator shades). The rotating gun arm overlay still covers the
+  // right arm during gameplay; the base sprite always shows both arms so he
+  // looks correct on character select cards and HUD portrait.
   function drawConnor(g, cx, cy, opt = {}) {
-    // Legs — baggy navy jeans, smoother taper
-    g.fillStyle(0x1b2438);
-    g.fillEllipse(cx - 7, cy + 18, 12, 30);
-    g.fillEllipse(cx + 7, cy + 18, 12, 30);
-    // White trainers with red flash
-    g.fillStyle(0xf2f2f2);
-    g.fillEllipse(cx - 7, cy + 33, 14, 7);
-    g.fillEllipse(cx + 7, cy + 33, 14, 7);
-    g.fillStyle(0xc62828);
-    g.fillRect(cx - 13, cy + 33, 12, 2);
-    g.fillRect(cx + 1,  cy + 33, 12, 2);
-    // Torso — gangster: dark navy jacket; normal: dark grey
-    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
-    g.fillEllipse(cx, cy - 2, 32, 30);
-    // Jacket lapel V — slightly darker than torso
-    g.fillStyle(opt.gangster ? 0x05081a : 0x141414);
-    g.fillTriangle(cx - 8, cy - 14, cx + 8, cy - 14, cx, cy + 4);
-    // Gold chain — only in gangster mode (gold accent, not yellow body)
+    const skin = 0xf0c49a;
+    // Legs — gangster wears baggy jeans (wider stance), normal navy jeans
+    g.fillStyle(opt.gangster ? 0x1a2030 : 0x1b2438);
+    g.fillEllipse(cx - 8, cy + 18, opt.gangster ? 14 : 12, 30);
+    g.fillEllipse(cx + 8, cy + 18, opt.gangster ? 14 : 12, 30);
+    // Trainers — gangster: red Jordans w/ white sole; normal: white w/ red flash
+    if (opt.gangster) {
+      g.fillStyle(0xc62828); // Jordan red upper
+      g.fillEllipse(cx - 8, cy + 33, 16, 8);
+      g.fillEllipse(cx + 8, cy + 33, 16, 8);
+      g.fillStyle(0xffffff); // white sole
+      g.fillRect(cx - 16, cy + 35, 16, 2);
+      g.fillRect(cx,      cy + 35, 16, 2);
+      g.fillStyle(0x000000); // jumpman silhouette dot
+      g.fillCircle(cx - 8, cy + 32, 1.4);
+      g.fillCircle(cx + 8, cy + 32, 1.4);
+    } else {
+      g.fillStyle(0xf2f2f2);
+      g.fillEllipse(cx - 7, cy + 33, 14, 7);
+      g.fillEllipse(cx + 7, cy + 33, 14, 7);
+      g.fillStyle(0xc62828);
+      g.fillRect(cx - 13, cy + 33, 12, 2);
+      g.fillRect(cx + 1,  cy + 33, 12, 2);
+    }
+    // Torso — gangster: oversized navy/black NBA-style jersey; normal: dark grey jacket
+    if (opt.gangster) {
+      // Jersey body — wider, more rectangular
+      g.fillStyle(0x0a1230);
+      g.fillRect(cx - 18, cy - 14, 36, 28);
+      // Jersey neckline (V cut)
+      g.fillStyle(skin);
+      g.fillTriangle(cx - 5, cy - 14, cx + 5, cy - 14, cx, cy - 6);
+      // Jersey trim/piping (white stripe down side)
+      g.fillStyle(0xffffff);
+      g.fillRect(cx - 18, cy - 14, 2, 28);
+      g.fillRect(cx + 16, cy - 14, 2, 28);
+      // Big jersey number "23"
+      g.fillStyle(0xffffff);
+      g.fillRect(cx - 6, cy - 4, 4, 8);
+      g.fillRect(cx + 2, cy - 4, 4, 8);
+      g.fillRect(cx - 6, cy - 4, 10, 2);
+      g.fillRect(cx - 6, cy + 2, 10, 2);
+    } else {
+      g.fillStyle(0x262626);
+      g.fillEllipse(cx, cy - 2, 32, 30);
+      // Jacket lapel V
+      g.fillStyle(0x141414);
+      g.fillTriangle(cx - 8, cy - 14, cx + 8, cy - 14, cx, cy + 4);
+    }
+    // Gold chain — gangster only
     if (opt.gangster) {
       g.fillStyle(0xffd700);
-      g.fillCircle(cx - 5, cy - 8, 1.5);
-      g.fillCircle(cx - 2, cy - 6, 1.5);
-      g.fillCircle(cx + 2, cy - 6, 1.5);
-      g.fillCircle(cx + 5, cy - 8, 1.5);
-      g.fillCircle(cx, cy - 4, 3);
+      g.fillCircle(cx - 5, cy - 6, 1.5);
+      g.fillCircle(cx - 2, cy - 4, 1.5);
+      g.fillCircle(cx + 2, cy - 4, 1.5);
+      g.fillCircle(cx + 5, cy - 6, 1.5);
+      g.fillCircle(cx, cy - 1, 3.5); // pendant
     }
-    // Left arm (right arm is drawn separately as the rotating gun arm overlay)
-    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
-    g.fillEllipse(cx - 16, cy - 2, 8, 22);
+    // LEFT arm — bare skin sleeve in jersey (gangster) or jacket sleeve (normal)
+    g.fillStyle(opt.gangster ? skin : 0x262626);
+    g.fillEllipse(cx - 18, cy + 2, 8, 22);
     // Left hand
-    g.fillStyle(0xf0c49a);
-    g.fillCircle(cx - 16, cy + 10, 3);
-    // Right arm — small stub only (the rotating arm graphic covers this)
-    g.fillStyle(opt.gangster ? 0x0a1230 : 0x262626);
-    g.fillEllipse(cx + 14, cy - 4, 8, 14);
-    // Neck
-    g.fillStyle(0xf0c49a);
-    g.fillRect(cx - 3, cy - 16, 6, 5);
-    // Head — rounded, slightly larger for visible features
-    g.fillStyle(0xf0c49a);
-    g.fillCircle(cx, cy - 22, 10);
-    // v5: ONE curly wavy hair blob — irregular asymmetric shape, brown/blonde
-    g.fillStyle(0x6b4a28);
-    // Main mass on top of head
-    g.fillEllipse(cx, cy - 30, 24, 11);
-    // One curly tuft offset right (gives the wavy/messy curl)
-    g.fillEllipse(cx + 5, cy - 33, 10, 7);
-    // One small curl front
-    g.fillEllipse(cx - 8, cy - 28, 6, 5);
-    // Eyes / sunglasses (gangster wears shades — no yellow anywhere)
+    g.fillStyle(skin);
+    g.fillCircle(cx - 18, cy + 14, 3.5);
+    // RIGHT arm — visible too (in gangster mode both holding pistols; in
+    // normal mode the rotating gun-arm overlay covers this during gameplay
+    // but the static sprite still shows a real arm so character select looks
+    // correct). Bare skin in gangster, jacket sleeve in normal.
+    g.fillStyle(opt.gangster ? skin : 0x262626);
+    g.fillEllipse(cx + 18, cy + 2, 8, 22);
+    g.fillStyle(skin);
+    g.fillCircle(cx + 18, cy + 14, 3.5);
+    // Gangster: hint of a second pistol in the left hand
     if (opt.gangster) {
-      // Black aviator-style shades across the eyes
+      g.fillStyle(0x111111);
+      g.fillRect(cx - 24, cy + 12, 8, 4);
+      g.fillStyle(0x2a2a2a);
+      g.fillRect(cx - 24, cy + 11, 8, 1);
+    }
+    // Neck
+    g.fillStyle(skin);
+    g.fillRect(cx - 3, cy - 16, 6, 5);
+    // Head
+    g.fillStyle(skin);
+    g.fillCircle(cx, cy - 22, 10);
+    // Hair / hat
+    if (opt.gangster) {
+      // Red snapback cap
+      g.fillStyle(0xc62828);
+      g.fillEllipse(cx, cy - 30, 24, 8); // crown
+      g.fillRect(cx - 12, cy - 30, 24, 4);
+      // Peak (forward brim)
+      g.fillStyle(0x8a1a1a);
+      g.fillRect(cx - 4, cy - 27, 16, 3);
+      // Cap logo dot
+      g.fillStyle(0xffffff);
+      g.fillRect(cx - 1, cy - 30, 2, 2);
+    } else {
+      // Brown curly wavy hair
+      g.fillStyle(0x6b4a28);
+      g.fillEllipse(cx, cy - 30, 24, 11);
+      g.fillEllipse(cx + 5, cy - 33, 10, 7);
+      g.fillEllipse(cx - 8, cy - 28, 6, 5);
+    }
+    // Eyes / shades
+    if (opt.gangster) {
+      // Black aviator shades
       g.fillStyle(0x000000);
       g.fillRect(cx - 9, cy - 23, 18, 5);
-      // Bridge highlight
       g.fillStyle(0x444444);
       g.fillRect(cx - 1, cy - 22, 2, 1);
-      // Lens reflections (white pinpoint, not yellow)
       g.fillStyle(0xffffff);
       g.fillRect(cx - 6, cy - 22, 2, 1);
       g.fillRect(cx + 4, cy - 22, 2, 1);
@@ -323,52 +383,73 @@
     g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
+  // v7: Callum — distinctly Chinese features: rounder full-cheek face,
+  // wider/flatter bowl cut, slight golden-tan skin, almond eyes, slight blush.
   function drawCallum(g, cx, cy) {
-    // Joggers
-    g.fillStyle(0x2a2a2a);
+    const skin = 0xeac38f;
+    // Black joggers
+    g.fillStyle(0x1a1a1a);
     g.fillEllipse(cx - 6, cy + 18, 11, 28);
     g.fillEllipse(cx + 6, cy + 18, 11, 28);
-    // Red/white gazelles
+    // Adidas stripe down the side of joggers
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 11, cy + 6, 1, 22);
+    g.fillRect(cx + 10, cy + 6, 1, 22);
+    // Red Gazelles w/ white stripe
     g.fillStyle(0xcc2222);
     g.fillEllipse(cx - 6, cy + 32, 13, 6);
     g.fillEllipse(cx + 6, cy + 32, 13, 6);
     g.fillStyle(0xffffff);
     g.fillRect(cx - 12, cy + 33, 12, 2);
     g.fillRect(cx,      cy + 33, 12, 2);
-    // North Face quarter-zip
+    // Black North Face quarter-zip
     g.fillStyle(0x141414);
     g.fillEllipse(cx, cy - 2, 28, 28);
+    // Quarter-zip teeth (silver line)
+    g.fillStyle(0x666666);
+    g.fillRect(cx, cy - 14, 1, 12);
+    // North Face logo (small white tag)
+    g.fillStyle(0xffffff);
+    g.fillRect(cx - 4, cy - 8, 8, 1);
+    g.fillRect(cx - 4, cy - 6, 4, 1);
     // Arms
+    g.fillStyle(0x141414);
     g.fillEllipse(cx - 14, cy - 2, 8, 22);
     g.fillEllipse(cx + 14, cy - 2, 8, 22);
     // Hands
-    g.fillStyle(0xe8c49a);
+    g.fillStyle(skin);
     g.fillCircle(cx - 14, cy + 10, 3);
     g.fillCircle(cx + 14, cy + 10, 3);
-    // Logo
-    g.fillStyle(0xffffff);
-    g.fillRect(cx - 3, cy - 8, 6, 1);
-    g.fillStyle(0x3a3a3a);
-    g.fillRect(cx, cy - 14, 1, 14);
     // Neck
-    g.fillStyle(0xe8c49a);
+    g.fillStyle(skin);
     g.fillRect(cx - 3, cy - 16, 6, 5);
-    // Head
-    g.fillStyle(0xe8c49a);
-    g.fillCircle(cx, cy - 22, 9);
-    // Bowl cut
+    // ROUND head — bigger and rounder for that full-cheek look
+    g.fillStyle(skin);
+    g.fillCircle(cx, cy - 22, 11);
+    // Cheek blush — light pink dots on the round cheeks
+    g.fillStyle(0xe8a08a);
+    g.fillCircle(cx - 7, cy - 19, 2);
+    g.fillCircle(cx + 7, cy - 19, 2);
+    // Wider, flatter bowl cut — covers forehead heavily, flat top
     g.fillStyle(0x0a0a0a);
-    g.fillEllipse(cx, cy - 28, 20, 8);
-    // Eyes
+    g.fillEllipse(cx, cy - 27, 24, 9); // top dome wider
+    g.fillRect(cx - 12, cy - 26, 24, 4); // straight flat fringe edge
+    // Side bowl-cut sweep covering the temples
+    g.fillEllipse(cx - 10, cy - 22, 6, 8);
+    g.fillEllipse(cx + 10, cy - 22, 6, 8);
+    // Almond/narrow eyes — dark slits with subtle highlight
+    g.fillStyle(0x1a0e08);
+    g.fillRect(cx - 6, cy - 22, 5, 1.5);
+    g.fillRect(cx + 1, cy - 22, 5, 1.5);
     g.fillStyle(0xffffff);
-    g.fillCircle(cx - 4, cy - 22, 1.6);
-    g.fillCircle(cx + 4, cy - 22, 1.6);
-    g.fillStyle(0x000000);
-    g.fillCircle(cx - 4, cy - 22, 0.9);
-    g.fillCircle(cx + 4, cy - 22, 0.9);
-    // Mouth
+    g.fillRect(cx - 4, cy - 22, 1, 1);
+    g.fillRect(cx + 3, cy - 22, 1, 1);
+    // Subtle nose shadow
+    g.fillStyle(0xc89878);
+    g.fillRect(cx - 1, cy - 19, 2, 2);
+    // Small mouth
     g.fillStyle(0x6a3320);
-    g.fillRect(cx - 3, cy - 17, 6, 1);
+    g.fillRect(cx - 2, cy - 16, 4, 1);
   }
 
   function drawFinley(g, cx, cy) {
@@ -420,8 +501,10 @@
     g.fillRect(cx - 3, cy - 17, 6, 1);
   }
 
+  // v7: Declan — base skin is now light peach (was yellow placeholder).
+  // Frog mode keeps green skin + bulging side eyes + wide squat legs.
   function drawDeclan(g, cx, cy, opt = {}) {
-    const skin = opt.frog ? 0x33aa33 : 0xffdd1a;
+    const skin = opt.frog ? 0x33aa33 : 0xf0c49a;
     const stance = opt.frog ? 11 : 5;
     // Legs — frog mode = wider squat, narrow otherwise
     g.fillStyle(opt.frog ? 0x2a8a2a : 0x0a0a0a);
@@ -522,14 +605,24 @@
       g.fillTriangle(cx + 8, cy - 4, cx + 10, cy - 1, cx + 12, cy - 4);
       return;
     }
-    // Normal finance bro
+    // v7: Normal finance-bro Aaron — sleek swept-back quiff, defined brows,
+    // strong jaw, light-blue shirt, tan chinos, brown loafers.
+    const skin = 0xe8c090;
+    // Tan chino legs
     g.fillStyle(0xc9a97a);
     g.fillEllipse(cx - 6, cy + 18, 12, 28);
     g.fillEllipse(cx + 6, cy + 18, 12, 28);
-    // Brown loafers
+    // Crease in chinos
+    g.fillStyle(0xa88858);
+    g.fillRect(cx - 6, cy + 6, 1, 22);
+    g.fillRect(cx + 5, cy + 6, 1, 22);
+    // Brown loafers (with sole highlight)
     g.fillStyle(0x5a3a1a);
     g.fillEllipse(cx - 6, cy + 32, 13, 6);
     g.fillEllipse(cx + 6, cy + 32, 13, 6);
+    g.fillStyle(0x8a5a2a);
+    g.fillRect(cx - 12, cy + 30, 12, 1);
+    g.fillRect(cx,      cy + 30, 12, 1);
     // Light-blue shirt
     g.fillStyle(0xaaccee);
     g.fillEllipse(cx, cy - 2, 28, 28);
@@ -537,66 +630,188 @@
     g.fillEllipse(cx - 14, cy - 2, 8, 22);
     g.fillEllipse(cx + 14, cy - 2, 8, 22);
     // Hands
-    g.fillStyle(0xe8c090);
+    g.fillStyle(skin);
     g.fillCircle(cx - 14, cy + 10, 3);
     g.fillCircle(cx + 14, cy + 10, 3);
-    // Button line
+    // Button line down the shirt
     g.fillStyle(0x1a1a1a);
     g.fillRect(cx, cy - 10, 1, 18);
+    g.fillStyle(0xffffff);
+    g.fillRect(cx, cy - 6, 1, 1);
+    g.fillRect(cx, cy + 0, 1, 1);
+    g.fillRect(cx, cy + 6, 1, 1);
     // Collar V
     g.fillStyle(0x8aaacc);
     g.fillTriangle(cx - 6, cy - 14, cx + 6, cy - 14, cx, cy - 6);
     // Neck
-    g.fillStyle(0xe8c090);
+    g.fillStyle(skin);
     g.fillRect(cx - 3, cy - 16, 6, 5);
-    // Head
-    g.fillStyle(0xe8c090);
+    // Head — slightly more angular
+    g.fillStyle(skin);
     g.fillCircle(cx, cy - 22, 9);
-    // Slicked quiff
+    // Strong jaw shadow
+    g.fillStyle(0xc8a070);
+    g.fillRect(cx - 6, cy - 16, 12, 1);
+    // Sleek SWEPT-BACK quiff — taller in front, swept back to the side
+    g.fillStyle(0x2a1a0a);
+    // Back of hair (sits low at the back of the skull)
+    g.fillEllipse(cx, cy - 28, 18, 5);
+    // Tall front quiff swept up + back
+    g.fillTriangle(cx - 7, cy - 28, cx + 4, cy - 34, cx + 6, cy - 28);
+    // Sleek hair shine highlight
     g.fillStyle(0x4a2a1a);
-    g.fillEllipse(cx, cy - 28, 16, 6);
-    g.fillEllipse(cx - 1, cy - 32, 7, 5);
-    // Eyes
+    g.fillRect(cx - 2, cy - 31, 4, 1);
+    // Defined eyebrows
+    g.fillStyle(0x2a1a0a);
+    g.fillRect(cx - 6, cy - 25, 4, 1);
+    g.fillRect(cx + 2, cy - 25, 4, 1);
+    // Eyes — sharp, with whites
     g.fillStyle(0xffffff);
-    g.fillCircle(cx - 4, cy - 22, 1.6);
-    g.fillCircle(cx + 4, cy - 22, 1.6);
+    g.fillCircle(cx - 4, cy - 22, 1.8);
+    g.fillCircle(cx + 4, cy - 22, 1.8);
     g.fillStyle(0x000000);
-    g.fillCircle(cx - 4, cy - 22, 0.9);
-    g.fillCircle(cx + 4, cy - 22, 0.9);
-    // Mouth
+    g.fillCircle(cx - 4, cy - 22, 1.0);
+    g.fillCircle(cx + 4, cy - 22, 1.0);
+    // Defined nose (small bridge shadow)
+    g.fillStyle(0xc8a070);
+    g.fillRect(cx - 1, cy - 20, 2, 3);
+    // Mouth — slight smirk
     g.fillStyle(0x6a3320);
     g.fillRect(cx - 3, cy - 17, 6, 1);
+    g.fillRect(cx + 3, cy - 18, 1, 1);
   }
 
+  // v7: Charlie — Nike tracksuit, proper TWO legs + trainers, real face
+  // (eyes with whites + actual mouth), black French crop hair.
   function drawCharlie(g, cx, cy) {
-    // Fat build — wider
-    // Tracksuit bottoms (black w/ white stripes)
+    const skin = 0xe5b88a;
+    // Tracksuit bottoms — TWO proper legs (not a single block)
     g.fillStyle(0x141414);
-    g.fillRect(cx - 15, cy + 5, 30, 28);
+    g.fillEllipse(cx - 7, cy + 18, 14, 30);
+    g.fillEllipse(cx + 7, cy + 18, 14, 30);
+    // White Nike side stripes
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 14, cy + 5, 2, 28);
-    g.fillRect(cx + 12, cy + 5, 2, 28);
-    // Trainers
+    g.fillRect(cx - 13, cy + 6, 1, 24);
+    g.fillRect(cx + 12, cy + 6, 1, 24);
+    // White trainers
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 16, cy + 30, 12, 5);
-    g.fillRect(cx + 4,  cy + 30, 12, 5);
-    // Nike top (black)
+    g.fillEllipse(cx - 7, cy + 33, 16, 7);
+    g.fillEllipse(cx + 7, cy + 33, 16, 7);
+    // Trainer sole accent
+    g.fillStyle(0xcccccc);
+    g.fillRect(cx - 14, cy + 35, 14, 1);
+    g.fillRect(cx,      cy + 35, 14, 1);
+    // Nike top (black) — wider/bulkier torso for the "fat lad" build
     g.fillStyle(0x141414);
-    g.fillRect(cx - 19, cy - 14, 38, 26);
+    g.fillEllipse(cx, cy - 4, 36, 28);
     // Swoosh
     g.fillStyle(0xffffff);
-    g.fillRect(cx - 9, cy - 8, 10, 2);
-    // Head (bigger)
-    g.fillStyle(0xe5b88a);
-    g.fillCircle(cx, cy - 20, 11);
-    // French crop
-    g.fillStyle(0x3a2a1a);
-    g.fillRect(cx - 11, cy - 28, 22, 5);
-    g.fillRect(cx - 11, cy - 23, 5, 3);
-    // Eyes
+    g.fillTriangle(cx - 8, cy - 6, cx + 6, cy - 10, cx + 6, cy - 6);
+    // Arms hanging down
+    g.fillStyle(0x141414);
+    g.fillEllipse(cx - 18, cy - 2, 8, 22);
+    g.fillEllipse(cx + 18, cy - 2, 8, 22);
+    // Hands
+    g.fillStyle(skin);
+    g.fillCircle(cx - 18, cy + 10, 3);
+    g.fillCircle(cx + 18, cy + 10, 3);
+    // Neck
+    g.fillStyle(skin);
+    g.fillRect(cx - 3, cy - 18, 6, 4);
+    // Head (slightly bigger, rounder for chubby look)
+    g.fillStyle(skin);
+    g.fillCircle(cx, cy - 22, 10);
+    // Double-chin hint
+    g.fillStyle(0xd4a378);
+    g.fillRect(cx - 4, cy - 14, 8, 1);
+    // Black French crop — short cropped hair w/ sharp fringe edge
+    g.fillStyle(0x0a0a0a);
+    g.fillEllipse(cx, cy - 29, 20, 7);
+    g.fillRect(cx - 10, cy - 28, 20, 4);
+    // Texture / spiky top hint
+    g.fillRect(cx - 6, cy - 31, 2, 2);
+    g.fillRect(cx - 1, cy - 32, 2, 2);
+    g.fillRect(cx + 4, cy - 31, 2, 2);
+    // Sideburns (faint)
+    g.fillRect(cx - 9, cy - 24, 1, 3);
+    g.fillRect(cx + 8, cy - 24, 1, 3);
+    // Eyebrows
+    g.fillStyle(0x1a1a1a);
+    g.fillRect(cx - 6, cy - 24, 4, 1);
+    g.fillRect(cx + 2, cy - 24, 4, 1);
+    // Eyes with WHITES + pupils
+    g.fillStyle(0xffffff);
+    g.fillCircle(cx - 4, cy - 21, 1.8);
+    g.fillCircle(cx + 4, cy - 21, 1.8);
     g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 20, 2, 1);
-    g.fillRect(cx + 2, cy - 20, 2, 1);
+    g.fillCircle(cx - 4, cy - 21, 1);
+    g.fillCircle(cx + 4, cy - 21, 1);
+    // Nose dot
+    g.fillStyle(0xc89878);
+    g.fillRect(cx - 1, cy - 19, 2, 2);
+    // Proper mouth — small smirk
+    g.fillStyle(0x6a3320);
+    g.fillRect(cx - 3, cy - 16, 6, 1);
+  }
+
+  // v7: Standalone goblin drawer — used to bake a dedicated texture that
+  // gets swapped onto Aaron's sprite when Goblin Mode powerup activates.
+  // Hunched ~45deg, elongated arms, beak nose, claw fingers, glowing red
+  // eyes. Designed for the same 50x72 frame as the other characters so it
+  // can drop straight in.
+  function drawAaronGoblin(g, cx, cy) {
+    const skin = 0x6a8a5a;
+    // Squat hunched legs (bent)
+    g.fillStyle(0x3a3a2a);
+    g.fillEllipse(cx - 9, cy + 24, 12, 18);
+    g.fillEllipse(cx + 9, cy + 24, 12, 18);
+    // Clawed feet — three pointed claws each
+    g.fillStyle(0x1a0e04);
+    g.fillTriangle(cx - 14, cy + 32, cx - 11, cy + 38, cx - 8, cy + 32);
+    g.fillTriangle(cx - 11, cy + 32, cx - 8,  cy + 38, cx - 5, cy + 32);
+    g.fillTriangle(cx + 8,  cy + 32, cx + 11, cy + 38, cx + 14, cy + 32);
+    g.fillTriangle(cx + 5,  cy + 32, cx + 8,  cy + 38, cx + 11, cy + 32);
+    // Hunched torso — angled forward (right side of body lower)
+    g.fillStyle(0x445533);
+    g.fillEllipse(cx + 4, cy + 6, 30, 22);
+    // Spine ridge / hump
+    g.fillStyle(0x556644);
+    g.fillEllipse(cx - 6, cy - 2, 14, 16);
+    // Long elongated arms — drag near the ground
+    g.fillStyle(skin);
+    g.fillEllipse(cx + 16, cy + 16, 8, 28);
+    g.fillEllipse(cx - 12, cy + 16, 8, 28);
+    // Sharp claw fingers at the ends
+    g.fillStyle(0x1a0e04);
+    g.fillTriangle(cx + 14, cy + 28, cx + 12, cy + 34, cx + 16, cy + 30);
+    g.fillTriangle(cx + 16, cy + 28, cx + 18, cy + 34, cx + 20, cy + 30);
+    g.fillTriangle(cx - 14, cy + 28, cx - 12, cy + 34, cx - 16, cy + 30);
+    g.fillTriangle(cx - 10, cy + 28, cx - 8,  cy + 34, cx - 12, cy + 30);
+    // Forward-jutting head — angled to the right (the hunch direction)
+    g.fillStyle(skin);
+    g.fillCircle(cx + 8, cy - 6, 10);
+    // Long pointy beak nose
+    g.fillStyle(0x4a5a3a);
+    g.fillTriangle(cx + 16, cy - 6, cx + 26, cy - 4, cx + 16, cy - 1);
+    // Glowing red eyes (circles, not slits)
+    g.fillStyle(0xff2222);
+    g.fillCircle(cx + 4, cy - 9, 2.2);
+    g.fillCircle(cx + 11, cy - 9, 2.2);
+    // Inner glow highlight
+    g.fillStyle(0xffaaaa);
+    g.fillCircle(cx + 4, cy - 9, 0.8);
+    g.fillCircle(cx + 11, cy - 9, 0.8);
+    // Pointy ears — backward swept
+    g.fillStyle(skin);
+    g.fillTriangle(cx, cy - 14, cx - 4, cy - 22, cx + 4, cy - 14);
+    g.fillTriangle(cx + 14, cy - 12, cx + 18, cy - 20, cx + 12, cy - 8);
+    // Jagged teeth poking from the beak
+    g.fillStyle(0xeeddaa);
+    g.fillTriangle(cx + 6, cy - 2, cx + 8, cy + 2, cx + 10, cy - 2);
+    g.fillTriangle(cx + 11, cy - 2, cx + 13, cy + 2, cx + 15, cy - 2);
+    // Drool drip
+    g.fillStyle(0xccffaa);
+    g.fillRect(cx + 9, cy + 2, 1, 3);
   }
 
   const CHARACTER_DRAWERS = {
@@ -731,6 +946,96 @@
   }
 
   // =============================================================================
+  // v7 AUDIO — synthesised SFX + ambient drone via raw Web Audio API.
+  // No external files. Lazy-init on first user gesture (browsers require a
+  // user interaction before AudioContext can play).
+  // =============================================================================
+  const AUDIO = {
+    ctx: null,
+    ambient: null,
+    masterGain: null,
+
+    init() {
+      if (this.ctx) return;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        this.ctx = new Ctx();
+      } catch (e) { return; }
+      // Master gain — global volume knob
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.7;
+      this.masterGain.connect(this.ctx.destination);
+      this._startAmbient();
+    },
+
+    // Quiet 80Hz sine drone running constantly under everything
+    _startAmbient() {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 80;
+      gain.gain.value = 0.05;
+      // Slow LFO on the ambient gain for a breathing feel
+      const lfo = this.ctx.createOscillator();
+      const lfoGain = this.ctx.createGain();
+      lfo.frequency.value = 0.15;
+      lfoGain.gain.value = 0.02;
+      lfo.connect(lfoGain).connect(gain.gain);
+      osc.connect(gain).connect(this.masterGain);
+      osc.start();
+      lfo.start();
+      this.ambient = { osc, gain, lfo };
+    },
+
+    // One-shot synth tone with optional pitch glide.
+    // freqA -> freqB over durationMs, simple AD envelope.
+    beep(freqA, freqB, durationMs, volume, type) {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const dur = durationMs / 1000;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freqA, t);
+      if (freqB && freqB !== freqA) {
+        // exponential ramp can't hit 0; clamp
+        osc.frequency.exponentialRampToValueAtTime(
+          Math.max(20, freqB), t + dur);
+      }
+      // Quick attack, exponential release
+      const v = volume == null ? 0.15 : volume;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(v, t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    },
+
+    // Layered burst — used for richer effects (kill, wave clear)
+    chord(freqs, durationMs, volume, type) {
+      if (!this.ctx) return;
+      freqs.forEach((f, i) => {
+        this.beep(f, f, durationMs, (volume || 0.1) * (1 - i * 0.15), type);
+      });
+    },
+
+    // Friendly named one-shots — call these from gameplay code
+    shot()       { this.beep(800, 800, 200, 0.10, 'square'); },
+    enemyHit()   { this.beep(400, 400, 150, 0.10, 'sawtooth'); },
+    kill()       { this.beep(600, 200, 300, 0.18, 'square'); },
+    jump()       { this.beep(600, 600, 100, 0.08, 'sine'); },
+    pickup()     { this.beep(400, 800, 400, 0.14, 'sine'); },
+    waveClear()  { this.beep(800, 1200, 600, 0.18, 'square'); },
+    explosion()  { this.beep(180, 40, 450, 0.22, 'sawtooth'); },
+    powerupActivate() { this.chord([400, 600, 800], 350, 0.12, 'square'); },
+    playerHurt() { this.beep(240, 120, 200, 0.16, 'square'); },
+    death()      { this.beep(400, 60, 1100, 0.25, 'sawtooth'); },
+  };
+
+  // =============================================================================
   // SCENE: BOOT — not really needed but keeps structure clean
   // =============================================================================
   class BootScene extends Phaser.Scene {
@@ -821,6 +1126,7 @@
 
       // Click or any key skips straight to the character select
       const proceed = () => {
+        AUDIO.init(); // first user gesture — kick off the audio context
         this.cameras.main.fadeOut(280, 0, 0, 0);
         this.time.delayedCall(300, () => this.scene.start('CharacterSelect'));
       };
@@ -1037,6 +1343,8 @@
           btnTxt.setColor('#ffffff');
         });
         btnBg.on('pointerdown', () => {
+          AUDIO.init(); // ensure audio is live before entering the game
+          AUDIO.pickup();
           this.cameras.main.flash(250, 255, 30, 30);
           this.time.delayedCall(180, () => {
             this.scene.start('Game', { character: char.id });
@@ -1147,6 +1455,8 @@
       makeCharTexture(this, 'player_finley',          drawFinley);
       makeCharTexture(this, 'player_declan',          drawDeclan);
       makeCharTexture(this, 'player_aaron',           drawAaron);
+      // v7: dedicated goblin texture, swapped in on powerup activate
+      makeCharTexture(this, 'player_aaron_goblin',    drawAaronGoblin);
       makeCharTexture(this, 'player_charlie',         drawCharlie);
 
       // Enemies
@@ -1399,8 +1709,14 @@
     // not floating in the sky. Each sign gets a back-plate, four corner bolts,
     // and a single small ground light pool (the duplicate large pool in
     // createGround has also been removed).
+    // v7: All sign graphics + text now scroll at 0.45 so they stay bolted
+    // to the mid-layer buildings (which use the same scrollFactor). Halo
+    // glow circles removed entirely. Only a small ground-level ellipse
+    // glow remains beneath each sign at scrollFactor 1.0 (it's on the
+    // actual street, not the wall).
     createNeonSigns() {
       this.neonLightPools = [];
+      const SIGN_PARALLAX = 0.45;
 
       NEON_SIGNS.forEach(sign => {
         const col = sign.color;
@@ -1408,26 +1724,22 @@
         const h = 42;
         const boxX = sign.x, boxY = sign.y;
 
-        // v6: Halo circles removed entirely — signs are now physical
-        // panels bolted to the wall, no floating glow background.
-
-        // Mount plate — slightly larger than the frame, dark metal
-        const plate = this.add.graphics();
+        // Mount plate
+        const plate = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
         plate.fillStyle(0x1a1a1e, 1);
         plate.fillRect(boxX - w / 2 - 4, boxY - 4, w + 8, h + 8);
-        // Plate shadow strip (suggests it stands proud of the wall)
         plate.fillStyle(0x000000, 0.55);
         plate.fillRect(boxX - w / 2 - 6, boxY + h + 4, w + 12, 3);
 
-        // Sign body
-        const frame = this.add.graphics();
+        // Sign body / frame
+        const frame = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
         frame.fillStyle(0x070708, 1);
         frame.fillRect(boxX - w / 2, boxY, w, h);
         frame.lineStyle(2, col, 1);
         frame.strokeRect(boxX - w / 2, boxY, w, h);
 
-        // Four corner bolts holding the sign to the wall
-        const bolts = this.add.graphics();
+        // Corner bolts
+        const bolts = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
         bolts.fillStyle(0x666666, 1);
         const bx1 = boxX - w / 2 - 1, bx2 = boxX + w / 2 + 1;
         const by1 = boxY - 1,         by2 = boxY + h + 1;
@@ -1438,19 +1750,19 @@
           bolts.fillStyle(0x666666, 1);
         });
 
-        // Glowing text — coloured glow + bright white core
+        // Glowing text — also scrolls with the building
         const colHex = '#' + col.toString(16).padStart(6, '0');
         const txtGlow = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
           color: colHex, stroke: colHex, strokeThickness: 8,
-        }).setOrigin(0.5).setAlpha(0.45);
+        }).setOrigin(0.5).setAlpha(0.45).setScrollFactor(SIGN_PARALLAX);
 
         const txt = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
           color: '#ffffff',
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setScrollFactor(SIGN_PARALLAX);
 
-        // Subtle flicker on the bright elements only
+        // Subtle flicker
         this.tweens.add({
           targets: [txt, txtGlow],
           alpha: { from: 1, to: 0.85 },
@@ -1458,8 +1770,8 @@
           yoyo: true, repeat: -1,
         });
 
-        // v6: SINGLE small subtle ellipse on the ground beneath each sign
-        // (kept small per spec — no large floating glow anywhere).
+        // Small subtle ground glow ellipse — stays at full scroll (it's on
+        // the actual street, not the building wall).
         const pool = this.add.graphics();
         pool.fillStyle(col, 0.22);
         pool.fillEllipse(boxX, GROUND_Y - 2, 100, 12);
@@ -1839,11 +2151,13 @@
         .setOrigin(1, 0.5).setVisible(false);
       this.hud.add(this.hudPowerupBarBg); this.hud.add(this.hudPowerupBarFill);
 
-      // Controls hint (bottom right)
-      this.hud.add(this.add.text(GW - 12, GH - 10,
-        'WASD · SPACE (x2 DOUBLE JUMP) · S+DIR SLIDE · SHIFT BULLET TIME · MOUSE AIM + CLICK · E POWERUP · F TONGUE · TAB SWITCH · ESC PAUSE',
-        { fontFamily: 'monospace', fontSize: '10px', color: '#554444' }
-      ).setOrigin(1, 1));
+      // v7: Controls hint — readable size + lighter colour. H toggles a
+      // bigger centred overlay for full controls.
+      this.hudControlsHint = this.add.text(GW - 12, GH - 10,
+        'WASD MOVE  ·  SPACE JUMP (x2)  ·  MOUSE AIM + CLICK  ·  E POWERUP  ·  TAB SWITCH  ·  H HELP',
+        { fontFamily: 'monospace', fontSize: '13px', color: '#aabbaa', letterSpacing: 1 }
+      ).setOrigin(1, 1);
+      this.hud.add(this.hudControlsHint);
 
       // v6: Top-centre character switcher row — 6 portraits, current
       // highlighted. Click any to instantly switch character (resets HP to
@@ -1970,6 +2284,12 @@
         tongue: Phaser.Input.Keyboard.KeyCodes.F, // Frog mode tongue
       });
 
+      // v7: H toggles a centred help overlay with the full control list
+      this.input.keyboard.on('keydown-H', () => {
+        if (this.gameOver) return;
+        this.toggleHelpOverlay();
+      });
+
       // Click to shoot — but ignore clicks on HUD (they handle themselves)
       this.input.on('pointerdown', pointer => {
         if (this.gameOver || this.paused) return;
@@ -1992,6 +2312,51 @@
       this.sWasDown = false;
       this.eWasDown = false;
       this.fWasDown = false;
+    }
+
+    // v7: Centred help overlay listing every control. Toggle with H.
+    toggleHelpOverlay() {
+      if (this.helpOverlay) {
+        this.helpOverlay.destroy();
+        this.helpOverlay = null;
+        return;
+      }
+      const c = this.add.container(0, 0).setScrollFactor(0).setDepth(225);
+      c.add(this.add.rectangle(0, 0, GW, GH, 0x000000, 0.78)
+        .setOrigin(0, 0).setInteractive());
+      c.add(this.add.text(GW / 2, 100, 'CONTROLS', {
+        fontFamily: 'Impact', fontSize: '64px', color: '#ffaa22',
+        stroke: '#221100', strokeThickness: 4, letterSpacing: 6,
+      }).setOrigin(0.5));
+      const lines = [
+        ['WASD',          'Move'],
+        ['SPACE',         'Jump (press twice for double jump)'],
+        ['S (in air)',    'Drop through one-way platform'],
+        ['S + A/D',       'Slide'],
+        ['SHIFT (hold)',  'Bullet time'],
+        ['MOUSE',         'Aim'],
+        ['LEFT CLICK',    'Shoot'],
+        ['E',             'Activate powerup'],
+        ['F',             'Frog tongue (during Frog Mode)'],
+        ['TAB',           'Quick character switch'],
+        ['ESC',           'Pause'],
+        ['H',             'Toggle this help'],
+      ];
+      const baseY = 200;
+      lines.forEach(([k, v], i) => {
+        c.add(this.add.text(GW / 2 - 220, baseY + i * 32, k, {
+          fontFamily: 'monospace', fontSize: '20px', color: '#ffdd88',
+          letterSpacing: 2,
+        }));
+        c.add(this.add.text(GW / 2 - 60, baseY + i * 32, v, {
+          fontFamily: 'monospace', fontSize: '20px', color: '#cccccc',
+        }));
+      });
+      c.add(this.add.text(GW / 2, GH - 40, 'PRESS H TO CLOSE', {
+        fontFamily: 'monospace', fontSize: '14px', color: '#998866',
+        letterSpacing: 4,
+      }).setOrigin(0.5));
+      this.helpOverlay = c;
     }
 
     // v6: TAB-triggered quick switcher overlay — large portraits in a row,
@@ -2256,8 +2621,9 @@
           this.powerupOrb.setActive(false);
           // Respawn later
           this.time.delayedCall(18000, () => this.respawnPowerup());
-          // Grab visual
+          // Grab visual + ascending chime
           this.cameras.main.flash(120, 255, 200, 80);
+          AUDIO.pickup();
         }
       });
     }
@@ -2447,6 +2813,7 @@
         if (canFirstJump || canAirJump) {
           this.player.setVelocityY(jumpVel);
           ps.jumpsRemaining -= 1;
+          AUDIO.jump();
           // Coyote first-jump still costs a charge
           if (inCoyote && !onGround) ps.jumpsRemaining = Math.max(0, ps.jumpsRemaining - 0);
           // Quick spark on the second jump for feedback
@@ -2463,12 +2830,35 @@
         }
       }
 
-      // v6: pressing S while airborne fast-falls THROUGH a one-way platform
-      // by briefly disabling top collision on platforms the player is on.
-      if (sNow && !onGround && this.playerPlatformCollider &&
-          this.playerPlatformCollider.active) {
-        // Soft drop: nudge down so we slip past the next one-way platform
-        if (this.player.body.velocity.y < 0) this.player.setVelocityY(60);
+      // v7: Real drop-through. When S is JUST pressed in mid-air, find every
+      // platform the player is currently standing on (or just above) and
+      // disable its top-face collision for 300ms so the player falls
+      // straight through. checkCollision.up restored after the timer.
+      const sJustPressedAir = sJustPressed && !onGround;
+      if (sJustPressedAir && !ps.isSliding) {
+        const playerBottom = this.player.body.bottom;
+        const playerLeft   = this.player.body.left;
+        const playerRight  = this.player.body.right;
+        let droppedAny = false;
+        this.platforms.children.iterate(plat => {
+          if (!plat || !plat.body) return;
+          const pTop    = plat.body.top;
+          const pLeft   = plat.body.left;
+          const pRight  = plat.body.right;
+          // Within ~6px above the platform top + horizontally overlapping
+          if (playerBottom <= pTop + 8 && playerBottom >= pTop - 4 &&
+              playerRight  > pLeft && playerLeft < pRight) {
+            plat.body.checkCollision.up = false;
+            droppedAny = true;
+            this.time.delayedCall(300, () => {
+              if (plat && plat.body) plat.body.checkCollision.up = true;
+            });
+          }
+        });
+        if (droppedAny) {
+          // Boost downward so the drop feels intentional
+          this.player.setVelocityY(Math.max(180, this.player.body.velocity.y));
+        }
       }
 
       // After a dive, restore rotation once on ground
@@ -2664,6 +3054,7 @@
         onComplete: () => blast.destroy(),
       });
       this.cameras.main.shake(220, 0.012);
+      AUDIO.explosion();
       // Radius damage on player
       const dx = this.player.x - ex, dy = this.player.y - ey;
       const dist = Math.hypot(dx, dy);
@@ -2828,6 +3219,7 @@
       this.time.delayedCall(150, () => this.cameras.main.zoomTo(1.0, 180));
       this.showFloatingText(this.player.x, this.player.y - 80,
         'POWERUP!', '#ffee44');
+      AUDIO.powerupActivate();
 
       // Per-character visuals
       switch (charId) {
@@ -2872,9 +3264,11 @@
           this.player.setTint(0x33ff44);
           break;
         case 'aaron':
-          // Goblin: hunched (60% height), green-grey tint
-          this.player.setTint(0x88aa66);
-          this.player.setScale(1, 0.6);
+          // v7: Goblin Mode — swap to the dedicated goblin texture (hunched
+          // 45deg, claws, beak, glowing red eyes). No more squashed scale +
+          // tint hack — the texture itself does the heavy lifting.
+          this.player.setTexture('player_aaron_goblin');
+          this.player.clearTint();
           this.showFloatingText(this.player.x, this.player.y - 60, 'MINE!', '#88ff44');
           break;
         case 'charlie':
@@ -2905,6 +3299,8 @@
           this.player.setTexture('player_connor');
           break;
         case 'aaron':
+          // v7: restore base aaron texture (and scale, in case something nudged it)
+          this.player.setTexture('player_aaron');
           this.player.setScale(1, 1);
           break;
         case 'charlie':
@@ -2999,6 +3395,10 @@
         });
       });
 
+      // v7: shot SFX — slightly lower pitch + louder for shotgun
+      if (isConnor) AUDIO.beep(500, 350, 250, 0.14, 'square');
+      else AUDIO.shot();
+
       // Big bright muzzle flash at the gun barrel — bigger for shotgun
       const muzzleX = px + nx * 28;
       const muzzleY = py + ny * 6 - 4;
@@ -3030,6 +3430,8 @@
       // Green burst at the launch point
       this.muzzleFX.emitParticleAt(sx, sy, 6);
       this.cameras.main.shake(40, 0.002);
+      // v7: tongue SFX — wet glug sweep
+      AUDIO.beep(900, 300, 300, 0.14, 'sawtooth');
       this.time.delayedCall(700, () => { if (t.active) t.destroy(); });
     }
 
@@ -3039,6 +3441,7 @@
       if (!data || !data.alive) return;
 
       data.hp -= amount;
+      AUDIO.enemyHit();
       this.bloodFX.emitParticleAt(bulletX, bulletY, 8);
       // White hit flash
       enemy.setTintFill(0xffffff);
@@ -3059,6 +3462,7 @@
       if (!data) return;
       data.alive = false;
       this.kills += 1;
+      AUDIO.kill();
 
       // Ragdoll: disable physics body, apply custom motion
       enemy.body.enable = false;
@@ -3104,6 +3508,7 @@
     damagePlayer(amount) {
       if (this.gameOver) return;
       this.playerState.hp -= amount;
+      AUDIO.playerHurt();
       this.cameras.main.shake(160, 0.006);
       // Red tint flash — then restore the active powerup tint (or none)
       this.player.setTint(0xff4444);
@@ -3113,9 +3518,11 @@
         if (this.powerupActive) {
           // Re-apply the powerup's tint — v5: no tint for Connor (texture
           // already shows the navy gangster outfit, no yellow wash needed)
+          // v7: Connor (gangster texture) and Aaron (goblin texture) both use
+          // dedicated textures, so no tint wash on them.
           const tint = {
             connor: null, callum: 0xff8866, finley: 0xffe4a8,
-            declan: 0x33ff44, aaron: 0x88aa66, charlie: 0xffccaa,
+            declan: 0x33ff44, aaron: null, charlie: 0xffccaa,
           }[this.powerupKind];
           if (tint != null) this.player.setTint(tint);
         }
@@ -3129,6 +3536,7 @@
 
     triggerDeath() {
       this.gameOver = true;
+      AUDIO.death();
       // Slow-mo start
       this.physics.world.timeScale = 3.0;
       this.tweens.timeScale = 0.35;
@@ -3215,6 +3623,7 @@
       if (alive === 0) {
         this.waveTransitioning = true;
         this.showWaveClear();
+        AUDIO.waveClear();
         this.cameras.main.flash(220, 255, 230, 120);
         this.time.delayedCall(3000, () => {
           if (this.gameOver) return;
