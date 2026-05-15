@@ -100,6 +100,36 @@
   const BULLET_TIME_FACTOR = 0.25; // world timescale during bullet time
   const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
   const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
+  const WIN_WAVE = 10;             // clearing this wave triggers the win scene
+
+  // =============================================================================
+  // LEADERBOARD — localStorage, up to 10 entries, sorted kills→waves→time.
+  // =============================================================================
+  const SCORES = {
+    _KEY: 'prcarnage_hs',
+    load() {
+      try { return JSON.parse(localStorage.getItem(this._KEY)) || []; } catch { return []; }
+    },
+    save(arr) {
+      try { localStorage.setItem(this._KEY, JSON.stringify(arr.slice(0, 10))); } catch {}
+    },
+    // Returns 0-based rank (0 = first), or -1 if outside top 10.
+    add(entry) {
+      const arr = this.load();
+      arr.push(entry);
+      arr.sort((a, b) => b.kills - a.kills || b.wavesReached - a.wavesReached || a.timeSeconds - b.timeSeconds);
+      const rank = arr.indexOf(entry);
+      this.save(arr);
+      return rank < 10 ? rank : -1;
+    },
+    getTop(n) { return this.load().slice(0, n || 10); },
+    clear() { this.save([]); },
+  };
+
+  // Mute state — persisted across sessions
+  let isMuted = (() => {
+    try { return localStorage.getItem('prcarnage_muted') === '1'; } catch { return false; }
+  })();
 
   // v7: Wave location titles — change every 2 waves
   const WAVE_LOCATIONS = {
@@ -242,6 +272,120 @@
     { x: 1830, type: 'chav' },
     { x: 2200, type: 'hoodie' },
     { x: 2780, type: 'bouncer' },
+  ];
+
+  // =============================================================================
+  // LEVEL LAYOUTS — three visual/gameplay variants.
+  // Layout 0 = Northern Quarter (waves 1-4)
+  // Layout 1 = Deansgate / Salford (waves 5-7)
+  // Layout 2 = Industrial / Ancoats (waves 8+)
+  // =============================================================================
+  const PLATFORM_LAYOUTS = [
+    // Layout 0 (original)
+    [
+      { x: 220,  y: 540, w: 50,  kind: 'bin' },
+      { x: 400,  y: 510, w: 140, kind: 'platform' },
+      { x: 600,  y: 540, w: 50,  kind: 'bin' },
+      { x: 1000, y: 510, w: 180, kind: 'platform' },
+      { x: 1240, y: 540, w: 50,  kind: 'bin' },
+      { x: 1480, y: 540, w: 50,  kind: 'bin' },
+      { x: 1950, y: 510, w: 140, kind: 'platform' },
+      { x: 2250, y: 540, w: 50,  kind: 'bin' },
+      { x: 2600, y: 510, w: 200, kind: 'platform' },
+      { x: 2880, y: 540, w: 50,  kind: 'bin' },
+      { x: 700,  y: 410, w: 120, kind: 'fireescape' },
+      { x: 1300, y: 410, w: 140, kind: 'platform' },
+      { x: 1620, y: 380, w: 160, kind: 'fireescape' },
+      { x: 2250, y: 400, w: 170, kind: 'platform' },
+      { x: 2780, y: 400, w: 120, kind: 'fireescape' },
+      { x: 500,  y: 290, w: 180, kind: 'rooftop' },
+      { x: 1100, y: 280, w: 220, kind: 'rooftop' },
+      { x: 1820, y: 270, w: 240, kind: 'rooftop' },
+      { x: 2450, y: 290, w: 200, kind: 'rooftop' },
+    ],
+    // Layout 1 (Deansgate / Salford)
+    [
+      { x: 280,  y: 535, w: 50,  kind: 'bin' },
+      { x: 480,  y: 510, w: 150, kind: 'platform' },
+      { x: 680,  y: 535, w: 50,  kind: 'bin' },
+      { x: 1050, y: 510, w: 160, kind: 'platform' },
+      { x: 1300, y: 535, w: 50,  kind: 'bin' },
+      { x: 1560, y: 535, w: 50,  kind: 'bin' },
+      { x: 2000, y: 510, w: 130, kind: 'platform' },
+      { x: 2300, y: 535, w: 50,  kind: 'bin' },
+      { x: 2650, y: 510, w: 180, kind: 'platform' },
+      { x: 2900, y: 535, w: 50,  kind: 'bin' },
+      { x: 750,  y: 420, w: 100, kind: 'fireescape' },
+      { x: 1350, y: 400, w: 160, kind: 'platform' },
+      { x: 1680, y: 390, w: 140, kind: 'fireescape' },
+      { x: 2280, y: 408, w: 160, kind: 'platform' },
+      { x: 2820, y: 390, w: 110, kind: 'fireescape' },
+      { x: 540,  y: 295, w: 170, kind: 'rooftop' },
+      { x: 1150, y: 272, w: 210, kind: 'rooftop' },
+      { x: 1870, y: 258, w: 230, kind: 'rooftop' },
+      { x: 2500, y: 283, w: 190, kind: 'rooftop' },
+    ],
+    // Layout 2 (Industrial / Ancoats)
+    [
+      { x: 200,  y: 545, w: 50,  kind: 'bin' },
+      { x: 420,  y: 505, w: 160, kind: 'platform' },
+      { x: 650,  y: 545, w: 50,  kind: 'bin' },
+      { x: 980,  y: 510, w: 200, kind: 'platform' },
+      { x: 1220, y: 545, w: 50,  kind: 'bin' },
+      { x: 1500, y: 545, w: 50,  kind: 'bin' },
+      { x: 1920, y: 505, w: 150, kind: 'platform' },
+      { x: 2200, y: 545, w: 50,  kind: 'bin' },
+      { x: 2580, y: 505, w: 210, kind: 'platform' },
+      { x: 2860, y: 545, w: 50,  kind: 'bin' },
+      { x: 680,  y: 400, w: 130, kind: 'fireescape' },
+      { x: 1280, y: 395, w: 150, kind: 'platform' },
+      { x: 1600, y: 368, w: 170, kind: 'fireescape' },
+      { x: 2220, y: 388, w: 180, kind: 'platform' },
+      { x: 2750, y: 376, w: 130, kind: 'fireescape' },
+      { x: 490,  y: 268, w: 190, kind: 'rooftop' },
+      { x: 1090, y: 253, w: 230, kind: 'rooftop' },
+      { x: 1800, y: 246, w: 250, kind: 'rooftop' },
+      { x: 2440, y: 263, w: 210, kind: 'rooftop' },
+    ],
+  ];
+
+  const NEON_SIGN_LAYOUTS = [
+    // Layout 0 (original Northern Quarter)
+    [
+      { x: 300,  y: 360, text: 'AFFLECKS',    color: 0xff2288 },
+      { x: 720,  y: 410, text: 'PRINTWORKS',  color: 0x33ffbb },
+      { x: 1120, y: 340, text: 'ARNDALE',     color: 0xffaa22 },
+      { x: 1520, y: 390, text: 'CURRY MILE',  color: 0xff4422 },
+      { x: 1900, y: 355, text: 'PICCADILLY',  color: 0x33aaff },
+      { x: 2300, y: 410, text: 'SPOONS',      color: 0xffff33 },
+      { x: 2700, y: 370, text: 'KEBAB',       color: 0xff33dd },
+    ],
+    // Layout 1 (Deansgate / Salford)
+    [
+      { x: 310,  y: 355, text: 'VICTORIA',    color: 0xff22aa },
+      { x: 730,  y: 405, text: 'STRANGEWAYS', color: 0x22ffdd },
+      { x: 1130, y: 345, text: 'CHORLTON',    color: 0xffcc22 },
+      { x: 1530, y: 385, text: 'DEANSGATE',   color: 0xff5533 },
+      { x: 1910, y: 360, text: 'FALLOWFIELD', color: 0x2255ff },
+      { x: 2310, y: 405, text: 'MOSS SIDE',   color: 0xffff44 },
+      { x: 2710, y: 375, text: 'MEDIACITY',   color: 0x00aaff },
+    ],
+    // Layout 2 (Industrial / Ancoats)
+    [
+      { x: 290,  y: 370, text: 'TRAFFORD',    color: 0xff4400 },
+      { x: 710,  y: 415, text: 'ANCOATS',     color: 0x44ffaa },
+      { x: 1110, y: 350, text: 'HULME',       color: 0xaa44ff },
+      { x: 1510, y: 395, text: 'RUSHOLME',    color: 0xff6600 },
+      { x: 1910, y: 352, text: 'TRAFFORD PARK',color: 0xff2200 },
+      { x: 2300, y: 418, text: 'LONGSIGHT',   color: 0x22eeff },
+      { x: 2700, y: 378, text: 'WHALLEY RANGE',color: 0xffee00 },
+    ],
+  ];
+
+  const LEVEL_SEEDS = [
+    { sky: 1337, mid: 4242, near: 9090 },
+    { sky: 2222, mid: 5555, near: 8888 },
+    { sky: 3333, mid: 6666, near: 1111 },
   ];
 
   // =============================================================================
@@ -895,7 +1039,7 @@
 
       // Master gain feeds the compressor — global volume knob lives here
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.7;
+      this.masterGain.gain.value = isMuted ? 0 : 0.7;
       this.masterGain.connect(this.compressor);
 
       // Tiny reverb send: short feedback delay → low-pass → master.
@@ -1058,6 +1202,18 @@
       this.beep(420, 60, 1100, 0.22, 'sawtooth', 0.3);
       this.noise(700, 0.18, 900, 80, 0.2);
     },
+    // Four ascending notes + final chord fanfare for the win screen
+    victory() {
+      if (!this.ctx) return;
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((f, i) => setTimeout(() => this.beep(f, f, 340, 0.18, 'square', 0.3), i * 170));
+      setTimeout(() => this.chord([261.63, 329.63, 392.00, 523.25], 900, 0.14, 'square', 0.4), 750);
+    },
+    setMuted(val) {
+      isMuted = val;
+      try { localStorage.setItem('prcarnage_muted', val ? '1' : '0'); } catch {}
+      if (this.masterGain) this.masterGain.gain.value = val ? 0 : 0.7;
+    },
   };
 
   // =============================================================================
@@ -1215,6 +1371,7 @@
       this.drawTitle();
       this.drawCards();
       this.drawFooter();
+      this.drawLeaderboard();
     }
 
     drawTitle() {
@@ -1380,9 +1537,28 @@
 
     drawFooter() {
       this.add.text(GW / 2, GH - 22,
-        'WASD MOVE  ·  SPACE JUMP (PRESS TWICE FOR DOUBLE JUMP)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  MOUSE AIM + CLICK SHOOT  ·  E POWERUP  ·  F TONGUE  ·  TAB SWITCH  ·  ESC PAUSE',
+        'WASD MOVE  ·  SPACE JUMP (x2)  ·  S+DIR SLIDE  ·  SHIFT BULLET TIME  ·  CLICK SHOOT  ·  E POWERUP  ·  TAB SWITCH  ·  ESC PAUSE  ·  M MUTE',
         { fontFamily: 'monospace', fontSize: '12px', color: '#665050', letterSpacing: 1 }
       ).setOrigin(0.5);
+    }
+
+    drawLeaderboard() {
+      const top3 = SCORES.getTop(3);
+      if (!top3.length) return;
+
+      this.add.text(GW / 2, GH - 95, '── BEST RUNS ──', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#554444', letterSpacing: 4,
+      }).setOrigin(0.5).setDepth(6);
+
+      top3.forEach((e, i) => {
+        const mins = String(Math.floor(e.timeSeconds / 60)).padStart(2, '0');
+        const secs = String(e.timeSeconds % 60).padStart(2, '0');
+        const line = `#${i + 1}  ${e.playerName.padEnd(8)}  ${String(e.kills).padStart(3)} kills  wave ${e.wavesReached}  ${mins}:${secs}`;
+        this.add.text(GW / 2, GH - 76 + i * 18, line, {
+          fontFamily: 'monospace', fontSize: '12px',
+          color: i === 0 ? '#ffcc44' : '#887070', letterSpacing: 1,
+        }).setOrigin(0.5).setDepth(6);
+      });
     }
 
     update(time, delta) {
@@ -1448,6 +1624,8 @@
       this.setupCamera();
 
       // Game state
+      this.startTime = this.time.now;
+      this.currentLayoutId = 0;
       this.kills = 0;
       this.bulletTimeEnergy = 100;
       this.bulletTimeActive = false;
@@ -1458,13 +1636,15 @@
       this.powerupTimer = 0;
       this.powerupMax = 1;
       this.powerupKind = null;
-      // v6: pause and quick-switch state
       this.paused = false;
       this.quickSwitchOpen = false;
 
-      // Wave state — infinite waves; game ends only on death
+      // Wave state
       this.wave = 1;
       this.waveTransitioning = false;
+
+      // Touch controls (mobile only — no-op on desktop)
+      this.createTouchControls();
 
       // Intro flash + first wave banner with location title
       this.cameras.main.flash(400, 255, 255, 255);
@@ -1658,10 +1838,12 @@
     }
 
     createMidBuildings() {
-      // Mid layer — brick shops with neon signage slots. Scrolls ~0.45.
+      if (this.midBuildingsGfx) this.midBuildingsGfx.destroy();
       const mid = this.add.graphics().setScrollFactor(0.45);
+      this.midBuildingsGfx = mid;
       let mx = -200;
-      const rng = mulberry32(4242);
+      const seed = (LEVEL_SEEDS[this.currentLayoutId] || LEVEL_SEEDS[0]).mid;
+      const rng = mulberry32(seed);
       while (mx < WORLD_W + 200) {
         const bw = 140 + rng() * 140;
         const bh = 240 + rng() * 120;
@@ -1740,10 +1922,14 @@
     // glow remains beneath each sign at scrollFactor 1.0 (it's on the
     // actual street, not the wall).
     createNeonSigns() {
+      // Destroy objects from any previous layout
+      if (this.neonSignObjects) this.neonSignObjects.forEach(o => { try { o.destroy(); } catch {} });
+      this.neonSignObjects = [];
       this.neonLightPools = [];
       const SIGN_PARALLAX = 0.45;
+      const signs = NEON_SIGN_LAYOUTS[this.currentLayoutId] || NEON_SIGN_LAYOUTS[0];
 
-      NEON_SIGNS.forEach(sign => {
+      signs.forEach(sign => {
         const col = sign.color;
         const w = sign.text.length * 14 + 24;
         const h = 42;
@@ -1795,13 +1981,15 @@
           yoyo: true, repeat: -1,
         });
 
-        // Small subtle ground glow ellipse — stays at full scroll (it's on
-        // the actual street, not the building wall).
+        // Small subtle ground glow ellipse
         const pool = this.add.graphics();
         pool.fillStyle(col, 0.22);
         pool.fillEllipse(boxX, GROUND_Y - 2, 100, 12);
         pool.setDepth(-1);
         this.neonLightPools.push({ g: pool, baseX: boxX, color: col });
+
+        // Track all sign objects so they can be cleaned up on layout switch
+        this.neonSignObjects.push(plate, frame, bolts, txtGlow, txt, pool);
       });
     }
 
@@ -1850,8 +2038,10 @@
     // fire escape, or a wheelie bin you can hop onto. The body's left/
     // right/down collision faces are disabled so things only collide on top.
     createPlatforms() {
-      this.platforms = this.physics.add.staticGroup();
-      PLATFORM_DATA.forEach(p => {
+      if (this.platforms) this.platforms.clear(true, true);
+      else this.platforms = this.physics.add.staticGroup();
+      const layout = PLATFORM_LAYOUTS[this.currentLayoutId] || PLATFORM_LAYOUTS[0];
+      layout.forEach(p => {
         const kind = p.kind || 'platform';
         let plat;
         if (kind === 'bin') {
@@ -2176,10 +2366,16 @@
         .setOrigin(1, 0.5).setVisible(false);
       this.hud.add(this.hudPowerupBarBg); this.hud.add(this.hudPowerupBarFill);
 
-      // v7: Controls hint — readable size + lighter colour. H toggles a
-      // bigger centred overlay for full controls.
+      // Mute state indicator (shown when M is pressed)
+      this.hudMuteLabel = this.add.text(GW - 16, 128,
+        isMuted ? '[MUTED]' : '',
+        { fontFamily: 'monospace', fontSize: '11px', color: '#aaaa55', letterSpacing: 1 }
+      ).setOrigin(1, 0).setAlpha(0.8);
+      this.hud.add(this.hudMuteLabel);
+
+      // Controls hint
       this.hudControlsHint = this.add.text(GW - 12, GH - 10,
-        'WASD MOVE  ·  SPACE JUMP (x2)  ·  MOUSE AIM + CLICK  ·  E POWERUP  ·  TAB SWITCH  ·  H HELP',
+        'WASD MOVE  ·  SPACE JUMP (x2)  ·  MOUSE AIM + CLICK  ·  E POWERUP  ·  TAB SWITCH  ·  M MUTE  ·  H HELP',
         { fontFamily: 'monospace', fontSize: '13px', color: '#aabbaa', letterSpacing: 1 }
       ).setOrigin(1, 1);
       this.hud.add(this.hudControlsHint);
@@ -2309,19 +2505,27 @@
         tongue: Phaser.Input.Keyboard.KeyCodes.F, // Frog mode tongue
       });
 
-      // v7: H toggles a centred help overlay with the full control list
+      // H toggles the full controls overlay
       this.input.keyboard.on('keydown-H', () => {
         if (this.gameOver) return;
         this.toggleHelpOverlay();
       });
 
-      // Click to shoot — but ignore clicks on HUD (they handle themselves)
+      // M toggles mute
+      this.input.keyboard.on('keydown-M', () => {
+        if (this.gameOver) return;
+        AUDIO.setMuted(!isMuted);
+        this.showMuteIndicator();
+      });
+
+      // Click to shoot — skip if pointer is over a touch control zone
       this.input.on('pointerdown', pointer => {
         if (this.gameOver || this.paused) return;
+        if (this.isTouchMode && this._inAnyTouchZone(pointer.x, pointer.y)) return;
         this.shoot(pointer);
       });
 
-      // v6: TAB cycles character switcher (closes if open). ESC pauses.
+      // TAB cycles character switcher. ESC pauses.
       this.input.keyboard.on('keydown-TAB', e => {
         if (e && e.preventDefault) e.preventDefault();
         if (this.gameOver) return;
@@ -2365,6 +2569,7 @@
         ['F',             'Frog tongue (during Frog Mode)'],
         ['TAB',           'Quick character switch'],
         ['ESC',           'Pause'],
+        ['M',             'Toggle mute'],
         ['H',             'Toggle this help'],
       ];
       const baseY = 200;
@@ -2472,117 +2677,148 @@
     pauseGame() {
       if (this.paused) return;
       this.paused = true;
-      // Close any quick-switcher first
       if (this.quickSwitchOpen) this.closeQuickSwitch();
       this.physics.world.pause();
       this.tweens.pauseAll();
 
       const c = this.add.container(0, 0).setScrollFactor(0).setDepth(230);
-      // Dim background
-      c.add(this.add.rectangle(0, 0, GW, GH, 0x000000, 0.72)
-        .setOrigin(0, 0).setInteractive());
-      // Title
-      c.add(this.add.text(GW / 2, 130, 'PAUSED', {
+      c.add(this.add.rectangle(0, 0, GW, GH, 0x000000, 0.76).setOrigin(0, 0).setInteractive());
+
+      c.add(this.add.text(GW / 2, 110, 'PAUSED', {
         fontFamily: 'Impact', fontSize: '90px', color: '#ffffff',
         stroke: '#221100', strokeThickness: 5, letterSpacing: 8,
       }).setOrigin(0.5));
-      // Current stats
+
       const statTxt =
         CHARACTERS[this.selectedCharacter].name +
         '   ·   WAVE ' + this.wave +
         '   ·   KILLS ' + this.kills +
         '   ·   HP ' + Math.max(0, Math.round(this.playerState.hp)) +
         ' / ' + this.playerState.maxHp;
-      c.add(this.add.text(GW / 2, 210, statTxt, {
-        fontFamily: 'monospace', fontSize: '18px', color: '#aaaaaa',
-        letterSpacing: 2,
+      c.add(this.add.text(GW / 2, 198, statTxt, {
+        fontFamily: 'monospace', fontSize: '18px', color: '#aaaaaa', letterSpacing: 2,
       }).setOrigin(0.5));
 
-      // Buttons
-      const btn = (label, cy, onClick, colour) => {
-        const bg = this.add.rectangle(GW / 2, cy, 380, 56,
-          colour || 0x1a1a22, 0.95)
-          .setStrokeStyle(2, 0x665544)
-          .setInteractive({ useHandCursor: true });
+      // Buttons — stored for keyboard navigation
+      this.pauseButtons = [];
+      this.pauseFocusIdx = 0;
+
+      const makePauseBtn = (label, cy, onClick, baseColour) => {
+        const col = baseColour || 0x1a1a22;
+        const bg = this.add.rectangle(GW / 2, cy, 400, 58, col, 0.95)
+          .setStrokeStyle(2, 0x665544).setInteractive({ useHandCursor: true });
         const t = this.add.text(GW / 2, cy, label, {
-          fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
-          letterSpacing: 4,
+          fontFamily: 'Impact', fontSize: '28px', color: '#ffffff', letterSpacing: 4,
         }).setOrigin(0.5);
-        bg.on('pointerover', () => { bg.setFillStyle(0x44221a); t.setColor('#ffee66'); });
-        bg.on('pointerout',  () => { bg.setFillStyle(colour || 0x1a1a22); t.setColor('#ffffff'); });
+        const idx = this.pauseButtons.length;
+        bg.on('pointerover', () => { this.pauseFocusIdx = idx; this.updatePauseHighlight(); });
+        bg.on('pointerout',  () => this.updatePauseHighlight());
         bg.on('pointerdown', onClick);
         c.add(bg); c.add(t);
+        this.pauseButtons.push({ bg, t, onClick, col });
       };
-      btn('RESUME',           300, () => this.resumeGame());
-      btn('SWITCH CHARACTER', 372, () => {
-        this.resumeGame();
-        this.openQuickSwitch();
-      });
-      btn('RESTART',          444, () => {
-        this.scene.restart({ character: this.selectedCharacter });
-      });
-      btn('QUIT TO MENU',     516, () => {
-        this.scene.start('CharacterSelect');
-      }, 0x331111);
 
-      c.add(this.add.text(GW / 2, GH - 30, 'ESC TO RESUME', {
-        fontFamily: 'monospace', fontSize: '12px', color: '#665544',
-        letterSpacing: 4,
-      }).setOrigin(0.5));
+      makePauseBtn('RESUME',           290, () => this.resumeGame());
+      makePauseBtn('SWITCH CHARACTER', 362, () => { this.resumeGame(); this.openQuickSwitch(); });
+      makePauseBtn('RESTART',          434, () => { this.scene.restart({ character: this.selectedCharacter }); });
+      makePauseBtn('QUIT TO MENU',     506, () => { this.scene.start('CharacterSelect'); }, 0x331111);
+
+      c.add(this.add.text(GW / 2, GH - 30,
+        'ESC  RESUME   UP/DOWN  NAVIGATE   ENTER  SELECT',
+        { fontFamily: 'monospace', fontSize: '12px', color: '#665544', letterSpacing: 3 }
+      ).setOrigin(0.5));
 
       this.pauseContainer = c;
+      this.updatePauseHighlight();
+
+      // Keyboard navigation handler (attached to window to avoid Phaser key conflicts)
+      this._pauseNavHandler = (e) => {
+        if (!this.paused || !this.pauseButtons) return;
+        if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+          this.pauseFocusIdx = (this.pauseFocusIdx + 1) % this.pauseButtons.length;
+          this.updatePauseHighlight();
+          e.preventDefault();
+        } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+          this.pauseFocusIdx = (this.pauseFocusIdx - 1 + this.pauseButtons.length) % this.pauseButtons.length;
+          this.updatePauseHighlight();
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          this.pauseButtons[this.pauseFocusIdx].onClick();
+          e.preventDefault();
+        }
+      };
+      window.addEventListener('keydown', this._pauseNavHandler);
+    }
+
+    updatePauseHighlight() {
+      if (!this.pauseButtons) return;
+      this.pauseButtons.forEach((item, i) => {
+        if (i === this.pauseFocusIdx) {
+          item.bg.setFillStyle(0x44221a);
+          item.bg.setStrokeStyle(3, 0xffee44);
+          item.t.setColor('#ffee44');
+        } else {
+          item.bg.setFillStyle(item.col);
+          item.bg.setStrokeStyle(2, 0x665544);
+          item.t.setColor('#ffffff');
+        }
+      });
     }
 
     resumeGame() {
       if (!this.paused) return;
       this.paused = false;
-      if (this.pauseContainer) {
-        this.pauseContainer.destroy(); this.pauseContainer = null;
+      if (this.pauseContainer) { this.pauseContainer.destroy(); this.pauseContainer = null; }
+      this.pauseButtons = null;
+      if (this._pauseNavHandler) {
+        window.removeEventListener('keydown', this._pauseNavHandler);
+        this._pauseNavHandler = null;
       }
-      // Don't resume physics if quick-switch is somehow open
       if (!this.quickSwitchOpen) {
         this.physics.world.resume();
         this.tweens.resumeAll();
       }
     }
 
-    setupCollisions() {
-      // Player vs ground/platforms — keep handle to platform collider so the
-      // Charlie Fatter powerup can disable it (Charlie can't reach platforms).
-      this.physics.add.collider(this.player, this.groundBody);
-      this.playerPlatformCollider =
-        this.physics.add.collider(this.player, this.platforms);
-
-      // Enemies vs ground/platforms
-      this.physics.add.collider(this.enemies, this.groundBody);
-      this.physics.add.collider(this.enemies, this.platforms);
-
-      // Bullets vs ground/platforms (destroy on hit).
-      // v8: Bullets fired UPWARD (negative vy) pass through one-way platforms
-      // so the player can shoot up at enemies standing on rooftops. Bullets
-      // moving downward or sideways still get destroyed on platform contact.
-      // Ground collisions always destroy.
-      const hitGround = (b) => {
-        if (!b.body) return;
+    // Bullet hits ground: always destroy + spark
+    _hitGroundCb(b) {
+      if (!b.body) return;
+      this.sparkFX.emitParticleAt(b.x, b.y, 5);
+      b.destroy();
+    }
+    // Bullet hits platform: only destroy if travelling downward (upward shots pass through)
+    _hitPlatformCb(b) {
+      if (!b.body) return;
+      if (b.body.velocity.y > 0) {
         this.sparkFX.emitParticleAt(b.x, b.y, 5);
         b.destroy();
-      };
-      const hitPlatform = (b) => {
-        if (!b.body) return;
-        // Only destroy if travelling downward — upward shots tunnel through
-        if (b.body.velocity.y > 0) {
-          this.sparkFX.emitParticleAt(b.x, b.y, 5);
-          b.destroy();
-        }
-      };
-      this.physics.add.collider(this.bullets, this.groundBody, hitGround);
-      this.physics.add.collider(this.bullets, this.platforms, hitPlatform);
-      this.physics.add.collider(this.enemyBullets, this.groundBody, hitGround);
-      this.physics.add.collider(this.enemyBullets, this.platforms, hitPlatform);
+      }
+    }
 
-      // v6: Grenades bounce off ground/platforms (don't destroy on impact)
-      this.physics.add.collider(this.grenades, this.groundBody);
-      this.physics.add.collider(this.grenades, this.platforms);
+    // (Re)build platform-specific colliders — called on init and on layout switch.
+    _setupPlatformColliders() {
+      if (this.platformColliders) this.platformColliders.forEach(c => { try { c.destroy(); } catch {} });
+      this.platformColliders = [];
+      this.playerPlatformCollider = this.physics.add.collider(this.player, this.platforms);
+      this.platformColliders.push(
+        this.playerPlatformCollider,
+        this.physics.add.collider(this.enemies,       this.platforms),
+        this.physics.add.collider(this.bullets,       this.platforms, this._hitPlatformCb.bind(this)),
+        this.physics.add.collider(this.enemyBullets,  this.platforms, this._hitPlatformCb.bind(this)),
+        this.physics.add.collider(this.grenades,      this.platforms),
+      );
+    }
+
+    setupCollisions() {
+      // Ground colliders — permanent, no rebuild needed
+      this.physics.add.collider(this.player,       this.groundBody);
+      this.physics.add.collider(this.enemies,      this.groundBody);
+      this.physics.add.collider(this.bullets,      this.groundBody, this._hitGroundCb.bind(this));
+      this.physics.add.collider(this.enemyBullets, this.groundBody, this._hitGroundCb.bind(this));
+      this.physics.add.collider(this.grenades,     this.groundBody);
+
+      // Platform colliders (rebuilt on layout switch)
+      this._setupPlatformColliders();
 
       // Bullet vs enemy — bullet carries its own damage (tongue = 9999, normal = playerDmg)
       this.physics.add.overlap(this.bullets, this.enemies, (bullet, enemy) => {
@@ -2755,9 +2991,9 @@
         ps.jumpsRemaining = ps.maxJumps;
       }
 
-      // Horizontal input
-      const left = this.keys.left.isDown;
-      const right = this.keys.right.isDown;
+      // Horizontal input — keyboard OR touch joystick
+      const left  = this.keys.left.isDown  || (this.touchInput && this.touchInput.left);
+      const right = this.keys.right.isDown || (this.touchInput && this.touchInput.right);
 
       // Slide detection (edge on S + direction, only while on ground and moving)
       const sNow = this.keys.down.isDown;
@@ -2823,10 +3059,11 @@
         }
       }
 
-      // Jump + dive + coyote time
-      const jumpPressed =
-        this.keys.jump.isDown || this.keys.up.isDown;
-      const jumpJustPressed = jumpPressed && !this.jumpWasDown;
+      // Jump — keyboard OR touch button
+      const jumpPressed = this.keys.jump.isDown || this.keys.up.isDown;
+      const touchJump = this.touchInput && this.touchInput.jumpJustPressed;
+      const jumpJustPressed = (jumpPressed && !this.jumpWasDown) || touchJump;
+      if (touchJump && this.touchInput) this.touchInput.jumpJustPressed = false; // consume
       this.jumpWasDown = jumpPressed;
 
       // Charlie can't jump while in Fatter mode
@@ -2918,9 +3155,11 @@
         this.connorArm.setVisible(false);
       }
 
-      // Powerup activation
+      // Powerup activation — keyboard E or touch powerup button
       const eNow = this.keys.powerup.isDown;
-      const eJust = eNow && !this.eWasDown;
+      const touchPow = this.touchInput && this.touchInput.powerupJustPressed;
+      const eJust = (eNow && !this.eWasDown) || touchPow;
+      if (touchPow && this.touchInput) this.touchInput.powerupJustPressed = false;
       this.eWasDown = eNow;
       if (eJust && this.powerupHeld && !this.powerupActive) {
         this.activatePowerup();
@@ -3611,11 +3850,13 @@
 
       this.cameras.main.shake(400, 0.01);
 
+      const timeSec = Math.round((this.time.now - this.startTime) / 1000);
       this.time.delayedCall(2000, () => {
         this.scene.start('Death', {
           character: this.selectedCharacter,
           kills: this.kills,
           wave: this.wave,
+          timeSeconds: timeSec,
         });
       });
     }
@@ -3664,8 +3905,6 @@
     }
 
     // -----------------------------------------------------------------------
-    // Infinite waves — v5: when all enemies dead, show a dramatic
-    // "WAVE CLEAR" text + screen flash, then 3s pause, then spawn next wave.
     checkWaveProgress() {
       if (this.gameOver || this.waveTransitioning) return;
       let alive = 0;
@@ -3677,9 +3916,21 @@
         this.showWaveClear();
         AUDIO.waveClear();
         this.cameras.main.flash(220, 255, 230, 120);
+
+        // Wave 10 cleared — victory
+        if (this.wave >= WIN_WAVE) {
+          this.time.delayedCall(2800, () => {
+            if (!this.gameOver) this.triggerWin();
+          });
+          return;
+        }
+
         this.time.delayedCall(3000, () => {
           if (this.gameOver) return;
           this.wave += 1;
+          // Switch layout at wave 5 and wave 8
+          if (this.wave === 5)      this.switchLayout(1);
+          else if (this.wave === 8) this.switchLayout(2);
           this.spawnWave(this.wave);
           this.showWaveBanner(this.wave);
           this.waveTransitioning = false;
@@ -3754,6 +4005,214 @@
         });
       });
     }
+
+    // -----------------------------------------------------------------------
+    triggerWin() {
+      this.gameOver = true;
+      AUDIO.victory();
+      this.cameras.main.shake(500, 0.012);
+      this.cameras.main.flash(400, 255, 220, 80);
+      const timeSec = Math.round((this.time.now - this.startTime) / 1000);
+      const entry = {
+        playerName: CHARACTERS[this.selectedCharacter].name,
+        kills: this.kills,
+        wavesReached: this.wave,
+        timeSeconds: timeSec,
+        timestamp: Date.now(),
+      };
+      const rank = SCORES.add(entry);
+      this.time.delayedCall(600, () => {
+        this.scene.start('Win', {
+          character: this.selectedCharacter,
+          kills: this.kills,
+          wave: this.wave,
+          timeSeconds: timeSec,
+          rank,
+        });
+      });
+    }
+
+    // Brief AUDIO: ON / OFF indicator top-right when M is pressed
+    showMuteIndicator() {
+      if (this.hudMuteLabel) {
+        this.hudMuteLabel.setText(isMuted ? '[MUTED]' : '[AUDIO ON]');
+        this.tweens.add({
+          targets: this.hudMuteLabel, alpha: { from: 1, to: 0 },
+          duration: 1800, delay: 800, ease: 'Linear',
+          onComplete: () => { if (this.hudMuteLabel) this.hudMuteLabel.setText(isMuted ? '[MUTED]' : ''); },
+        });
+      }
+    }
+
+    // Swap platforms, mid-buildings, and neon signs to a new layout.
+    switchLayout(id) {
+      if (id === this.currentLayoutId) return;
+      this.currentLayoutId = id;
+      // Flash to mask the swap
+      this.cameras.main.flash(260, 255, 255, 255);
+      this.time.delayedCall(130, () => {
+        this.createMidBuildings();
+        this.createNeonSigns();
+        this.createPlatforms();
+        this._setupPlatformColliders();
+        // Nudge player to ground in case they were on a now-deleted platform
+        if (this.player.y > GROUND_Y - 20) this.player.y = GROUND_Y - 50;
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // TOUCH CONTROLS — virtual joystick + buttons for mobile
+    createTouchControls() {
+      const mobile = window.innerWidth < 900 || ('ontouchstart' in window);
+      this.isTouchMode = mobile;
+      this.touchInput = { left: false, right: false, jumpJustPressed: false, shooting: false, powerupJustPressed: false };
+      if (!mobile) return;
+
+      // ---- JOYSTICK (bottom-left) ----
+      const JCX = 130, JCY = GH - 130, OUTER_R = 72, INNER_R = 30;
+      this.joystickCenter = { x: JCX, y: JCY };
+      this.joystickActive = false;
+      this.joystickTouchId = null;
+      this.joystickUpLast = false;
+
+      const jOuter = this.add.graphics().setScrollFactor(0).setDepth(400);
+      jOuter.fillStyle(0xffffff, 0.07); jOuter.fillCircle(JCX, JCY, OUTER_R);
+      jOuter.lineStyle(2, 0xffffff, 0.25); jOuter.strokeCircle(JCX, JCY, OUTER_R);
+
+      this.jThumbGfx = this.add.graphics().setScrollFactor(0).setDepth(401);
+      this._redrawThumb(JCX, JCY);
+
+      // Labels for buttons
+      const btnLabel = (x, y, txt) => this.add.text(x, y, txt, {
+        fontFamily: 'Impact', fontSize: '14px', color: '#ffffff',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(402).setAlpha(0.85);
+
+      // ---- ACTION BUTTONS (bottom-right) ----
+      // Shoot — large red circle
+      const shootGfx = this.add.graphics().setScrollFactor(0).setDepth(400);
+      shootGfx.fillStyle(0xaa0000, 0.45); shootGfx.fillCircle(GW - 100, GH - 120, 62);
+      shootGfx.lineStyle(2, 0xff4444, 0.7); shootGfx.strokeCircle(GW - 100, GH - 120, 62);
+      btnLabel(GW - 100, GH - 120, 'FIRE');
+
+      // Jump — blue circle
+      const jumpGfx = this.add.graphics().setScrollFactor(0).setDepth(400);
+      jumpGfx.fillStyle(0x2244aa, 0.45); jumpGfx.fillCircle(GW - 230, GH - 128, 52);
+      jumpGfx.lineStyle(2, 0x4488ff, 0.7); jumpGfx.strokeCircle(GW - 230, GH - 128, 52);
+      btnLabel(GW - 230, GH - 128, 'JUMP');
+
+      // Powerup — small gold circle
+      const powGfx = this.add.graphics().setScrollFactor(0).setDepth(400);
+      powGfx.fillStyle(0x886600, 0.45); powGfx.fillCircle(GW - 100, GH - 250, 38);
+      powGfx.lineStyle(2, 0xffaa22, 0.7); powGfx.strokeCircle(GW - 100, GH - 250, 38);
+      btnLabel(GW - 100, GH - 250, 'PWR');
+
+      // Pause — small top-right
+      const pauseGfx = this.add.graphics().setScrollFactor(0).setDepth(400);
+      pauseGfx.fillStyle(0x333333, 0.5); pauseGfx.fillRect(GW - 66, 14, 52, 32);
+      pauseGfx.lineStyle(1, 0x888888, 0.6); pauseGfx.strokeRect(GW - 66, 14, 52, 32);
+      this.add.text(GW - 40, 30, 'II', {
+        fontFamily: 'Impact', fontSize: '16px', color: '#cccccc',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(402);
+
+      // Touch zones (used by _inAnyTouchZone and pointer handlers)
+      this.touchZones = {
+        joystick: { x: JCX,       y: JCY,       r: OUTER_R + 20 },
+        shoot:    { x: GW - 100,  y: GH - 120,  r: 70 },
+        jump:     { x: GW - 230,  y: GH - 128,  r: 60 },
+        powerup:  { x: GW - 100,  y: GH - 250,  r: 46 },
+        pause:    { x: GW - 40,   y: 30,        r: 34 },
+      };
+
+      // ---- INPUT ROUTING ----
+      const hitZone = (zone, px, py) => Math.hypot(px - zone.x, py - zone.y) < zone.r;
+      const isRightSide = (px) => px > GW / 2;
+
+      this.input.on('pointerdown', (ptr) => {
+        if (this.gameOver || this.paused) return;
+        const { x, y } = ptr;
+        if (hitZone(this.touchZones.shoot, x, y)) {
+          this.touchInput.shooting = true;
+          this._doTouchShoot();
+        } else if (hitZone(this.touchZones.jump, x, y)) {
+          this.touchInput.jumpJustPressed = true;
+        } else if (hitZone(this.touchZones.powerup, x, y)) {
+          this.touchInput.powerupJustPressed = true;
+        } else if (hitZone(this.touchZones.pause, x, y)) {
+          this.togglePause();
+        } else if (!isRightSide(x)) {
+          this.joystickActive = true;
+          this.joystickTouchId = ptr.id;
+          this._updateJoystick(x, y);
+        }
+      });
+
+      this.input.on('pointermove', (ptr) => {
+        if (ptr.id === this.joystickTouchId && this.joystickActive) {
+          this._updateJoystick(ptr.x, ptr.y);
+        }
+        // Auto-repeat fire while shoot button is held
+        if (this.touchInput.shooting && hitZone(this.touchZones.shoot, ptr.x, ptr.y)) {
+          this._doTouchShoot();
+        } else if (!hitZone(this.touchZones.shoot, ptr.x, ptr.y)) {
+          this.touchInput.shooting = false;
+        }
+      });
+
+      this.input.on('pointerup', (ptr) => {
+        if (ptr.id === this.joystickTouchId) {
+          this.joystickActive = false;
+          this.joystickTouchId = null;
+          this.touchInput.left = false;
+          this.touchInput.right = false;
+          this._redrawThumb(JCX, JCY);
+        }
+        if (hitZone(this.touchZones.shoot, ptr.x, ptr.y)) {
+          this.touchInput.shooting = false;
+        }
+      });
+    }
+
+    _redrawThumb(x, y) {
+      if (!this.jThumbGfx) return;
+      this.jThumbGfx.clear();
+      this.jThumbGfx.fillStyle(0xffffff, 0.45);
+      this.jThumbGfx.fillCircle(x, y, 30);
+    }
+
+    _updateJoystick(px, py) {
+      const { x: cx, y: cy } = this.joystickCenter;
+      const dx = px - cx, dy = py - cy;
+      const dist = Math.min(Math.hypot(dx, dy), 68);
+      const angle = Math.atan2(dy, dx);
+      const tx = cx + Math.cos(angle) * dist;
+      const ty = cy + Math.sin(angle) * dist;
+      this._redrawThumb(tx, ty);
+      this.touchInput.left  = dx < -18;
+      this.touchInput.right = dx >  18;
+      // Jump: flick upward
+      if (dy < -48 && !this.joystickUpLast) {
+        this.touchInput.jumpJustPressed = true;
+        this.joystickUpLast = true;
+      } else if (dy > -20) {
+        this.joystickUpLast = false;
+      }
+    }
+
+    _inAnyTouchZone(px, py) {
+      if (!this.touchZones) return false;
+      for (const z of Object.values(this.touchZones)) {
+        if (Math.hypot(px - z.x, py - z.y) < z.r) return true;
+      }
+      return false;
+    }
+
+    _doTouchShoot() {
+      if (this.gameOver || this.paused) return;
+      // Aim 400px ahead in the direction the player is facing
+      const facing = (this.playerState && this.playerState.facing) || 1;
+      const fakePtr = { worldX: this.player.x + facing * 400, worldY: this.player.y - 10 };
+      this.shoot(fakePtr);
+    }
   }
 
   // =============================================================================
@@ -3763,71 +4222,99 @@
     constructor() { super({ key: 'Death' }); }
 
     init(data) {
-      this.payload = data || { kills: 0, wave: 1, character: 'connor' };
+      this.payload = data || { kills: 0, wave: 1, character: 'connor', timeSeconds: 0 };
     }
 
     create() {
-      this.cameras.main.setBackgroundColor('#1a0505');
+      // Record run to leaderboard
+      const p = this.payload;
+      const entry = {
+        playerName: CHARACTERS[p.character].name,
+        kills: p.kills,
+        wavesReached: p.wave,
+        timeSeconds: p.timeSeconds || 0,
+        timestamp: Date.now(),
+      };
+      const rank = SCORES.add(entry);
+      const isNewHigh = rank >= 0 && rank < 5;
 
-      const red = this.add.rectangle(0, 0, GW, GH, 0x880000)
-        .setOrigin(0, 0).setAlpha(0.15);
+      this.cameras.main.setBackgroundColor('#1a0505');
+      this.add.rectangle(0, 0, GW, GH, 0x880000).setOrigin(0, 0).setAlpha(0.15);
 
       // "YOU DIED" layered glow
       const t = 'YOU DIED';
       [
         { thick: 22, a: 0.15 }, { thick: 14, a: 0.3 }, { thick: 6, a: 0.7 },
       ].forEach(l => {
-        this.add.text(GW / 2, GH / 2 - 40, t, {
+        this.add.text(GW / 2, GH / 2 - 100, t, {
           fontFamily: 'Impact', fontSize: '110px',
           color: '#aa0000', stroke: '#aa0000', strokeThickness: l.thick,
         }).setOrigin(0.5).setAlpha(l.a);
       });
-      const main = this.add.text(GW / 2, GH / 2 - 40, t, {
+      const main = this.add.text(GW / 2, GH / 2 - 100, t, {
         fontFamily: 'Impact', fontSize: '110px',
         color: '#ff3333', stroke: '#330000', strokeThickness: 3,
       }).setOrigin(0.5);
 
-      // Kill count + wave reached
-      this.add.text(GW / 2, GH / 2 + 40,
-        'KILLS: ' + this.payload.kills, {
-          fontFamily: 'Impact', fontSize: '34px',
+      // New high score flash
+      if (isNewHigh) {
+        const hs = this.add.text(GW / 2, GH / 2 - 10, 'NEW HIGH SCORE  #' + (rank + 1), {
+          fontFamily: 'Impact', fontSize: '32px', color: '#ffee33',
+          stroke: '#553300', strokeThickness: 3, letterSpacing: 3,
+        }).setOrigin(0.5).setAlpha(0);
+        this.tweens.add({ targets: hs, alpha: 1, duration: 500, delay: 400 });
+        this.tweens.add({ targets: hs, alpha: { from: 0.7, to: 1 }, duration: 600, yoyo: true, repeat: -1, delay: 900 });
+      }
+
+      const mins = String(Math.floor(entry.timeSeconds / 60)).padStart(2, '0');
+      const secs = String(entry.timeSeconds % 60).padStart(2, '0');
+
+      this.add.text(GW / 2, GH / 2 + (isNewHigh ? 34 : 14),
+        'KILLS: ' + p.kills + '   WAVE ' + p.wave + '   TIME ' + mins + ':' + secs, {
+          fontFamily: 'Impact', fontSize: '28px',
           color: '#ffaa22', stroke: '#441100', strokeThickness: 2,
         }).setOrigin(0.5);
 
-      this.add.text(GW / 2, GH / 2 + 76,
-        'WAVE ' + this.payload.wave + ' REACHED', {
-          fontFamily: 'Impact', fontSize: '24px',
-          color: '#33ccff', stroke: '#001a33', strokeThickness: 2,
+      this.add.text(GW / 2, GH / 2 + (isNewHigh ? 68 : 48),
+        'AS ' + CHARACTERS[p.character].name, {
+          fontFamily: 'monospace', fontSize: '14px', color: '#777', letterSpacing: 3,
         }).setOrigin(0.5);
 
-      // Character
-      this.add.text(GW / 2, GH / 2 + 110,
-        'AS ' + CHARACTERS[this.payload.character].name, {
-          fontFamily: 'monospace', fontSize: '14px', color: '#777',
-          letterSpacing: 3,
+      // Mini leaderboard (top 5)
+      const top5 = SCORES.getTop(5);
+      if (top5.length) {
+        const lbY = GH / 2 + (isNewHigh ? 96 : 76);
+        this.add.text(GW / 2, lbY, 'TOP RUNS', {
+          fontFamily: 'monospace', fontSize: '12px', color: '#554444', letterSpacing: 4,
         }).setOrigin(0.5);
+        top5.forEach((e, i) => {
+          const m = String(Math.floor(e.timeSeconds / 60)).padStart(2, '0');
+          const s = String(e.timeSeconds % 60).padStart(2, '0');
+          const isThis = e.kills === entry.kills && e.wavesReached === entry.wavesReached && e.timeSeconds === entry.timeSeconds && e.playerName === entry.playerName;
+          this.add.text(GW / 2, lbY + 18 + i * 17,
+            `#${i + 1}  ${e.playerName.padEnd(8)}  ${String(e.kills).padStart(3)} kills  wave ${e.wavesReached}  ${m}:${s}`,
+            {
+              fontFamily: 'monospace', fontSize: '12px',
+              color: isThis ? '#ffcc44' : (i === 0 ? '#ccaa44' : '#665050'),
+            }).setOrigin(0.5);
+        });
+      }
 
-      // Retry prompt
-      const retry = this.add.text(GW / 2, GH - 90, 'CLICK TO RETRY', {
+      const retry = this.add.text(GW / 2, GH - 80, 'CLICK TO RETRY', {
         fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
         stroke: '#550000', strokeThickness: 2, letterSpacing: 3,
       }).setOrigin(0.5);
-      this.tweens.add({
-        targets: retry, alpha: { from: 0.4, to: 1 },
-        duration: 700, yoyo: true, repeat: -1,
-      });
+      this.tweens.add({ targets: retry, alpha: { from: 0.4, to: 1 }, duration: 700, yoyo: true, repeat: -1 });
 
-      this.add.text(GW / 2, GH - 50, 'ESC TO PICK ANOTHER CHARACTER', {
-        fontFamily: 'monospace', fontSize: '12px', color: '#554040',
-        letterSpacing: 2,
+      this.add.text(GW / 2, GH - 44, 'ESC TO PICK ANOTHER CHARACTER', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#554040', letterSpacing: 2,
       }).setOrigin(0.5);
 
-      // Zoom-in on title
       main.setScale(0.6);
       this.tweens.add({ targets: main, scale: 1, duration: 700, ease: 'Back.easeOut' });
 
       this.input.on('pointerdown', () => {
-        this.scene.start('Game', { character: this.payload.character });
+        this.scene.start('Game', { character: p.character });
       });
       this.input.keyboard.on('keydown-ESC', () => {
         this.scene.start('CharacterSelect');
@@ -3835,8 +4322,170 @@
     }
   }
 
-  // v8: WinScene removed — waves are infinite, the game ends only on death,
-  // so the win path was unreachable.
+  // =============================================================================
+  // SCENE: WIN — shown after clearing wave 10
+  // =============================================================================
+  class WinScene extends Phaser.Scene {
+    constructor() { super({ key: 'Win' }); }
+
+    init(data) {
+      this.payload = data || { kills: 0, wave: WIN_WAVE, character: 'connor', timeSeconds: 0, rank: -1 };
+    }
+
+    create() {
+      AUDIO.init();
+      this.cameras.main.setBackgroundColor('#0e0404');
+      this.cameras.main.shake(400, 0.01);
+
+      // Dark maroon gradient background
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x0e0404, 0x0e0404, 0x2a0808, 0x2a0808, 1);
+      bg.fillRect(0, 0, GW, GH);
+      bg.fillStyle(0x440000, 0.35);
+      bg.fillEllipse(GW / 2, GH * 0.82, GW * 1.3, 200);
+
+      // Building silhouettes
+      const rng = mulberry32(9999);
+      const sil = this.add.graphics();
+      let sx = 0;
+      while (sx < GW) {
+        const bw = 50 + rng() * 110; const bh = 100 + rng() * 240;
+        sil.fillStyle(0x060202, 1);
+        sil.fillRect(sx, GH - bh - 60, bw, bh);
+        sx += bw + 2 + rng() * 12;
+      }
+
+      // Rain
+      this.bgRain = [];
+      for (let i = 0; i < 160; i++) {
+        this.bgRain.push({ x: Math.random() * GW, y: Math.random() * GH, v: 400 + Math.random() * 300 });
+      }
+      this.rainGfx = this.add.graphics().setDepth(5);
+
+      const p = this.payload;
+      const mins = String(Math.floor(p.timeSeconds / 60)).padStart(2, '0');
+      const secs = String(p.timeSeconds % 60).padStart(2, '0');
+
+      // "MANCHESTER CLEARED" — big neon title, fades in
+      const glowLayers = [
+        { thick: 20, a: 0.12 }, { thick: 12, a: 0.28 }, { thick: 5, a: 0.6 },
+      ];
+      glowLayers.forEach(l => {
+        this.add.text(GW / 2, 120, 'MANCHESTER CLEARED', {
+          fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '82px',
+          color: '#cc0000', stroke: '#cc0000', strokeThickness: l.thick,
+        }).setOrigin(0.5).setAlpha(0);
+      });
+      const mainTitle = this.add.text(GW / 2, 120, 'MANCHESTER CLEARED', {
+        fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '82px',
+        color: '#ff3333', stroke: '#220000', strokeThickness: 3, letterSpacing: 2,
+      }).setOrigin(0.5).setAlpha(0).setScale(0.5);
+
+      // Stats line
+      const statsLine = this.add.text(GW / 2, 218,
+        CHARACTERS[p.character].name +
+        '   ·   ' + p.kills + ' KILLS' +
+        '   ·   WAVE ' + p.wave +
+        '   ·   ' + mins + ':' + secs, {
+          fontFamily: 'monospace', fontSize: '20px', color: '#ffaa44',
+          letterSpacing: 2,
+        }).setOrigin(0.5).setAlpha(0);
+
+      // Leaderboard section
+      const top5 = SCORES.getTop(5);
+      const lbContainer = this.add.container(GW / 2, 275).setAlpha(0);
+
+      lbContainer.add(this.add.text(0, 0, '── LEADERBOARD ──', {
+        fontFamily: 'monospace', fontSize: '14px', color: '#665050', letterSpacing: 4,
+      }).setOrigin(0.5));
+
+      top5.forEach((e, i) => {
+        const m = String(Math.floor(e.timeSeconds / 60)).padStart(2, '0');
+        const s = String(e.timeSeconds % 60).padStart(2, '0');
+        const isThis = p.rank === i;
+        const row = this.add.text(0, 26 + i * 22,
+          `#${i + 1}  ${e.playerName.padEnd(8)}  ${String(e.kills).padStart(3)} kills  wave ${e.wavesReached}  ${m}:${s}`,
+          {
+            fontFamily: 'monospace', fontSize: '14px',
+            color: isThis ? '#ffee44' : (i === 0 ? '#ccaa44' : '#887070'),
+            letterSpacing: 1,
+          }).setOrigin(0.5);
+        if (isThis) {
+          const highlight = this.add.rectangle(0, 26 + i * 22, 560, 20, 0x332200, 0.6).setStrokeStyle(1, 0xffaa22);
+          lbContainer.add(highlight);
+        }
+        lbContainer.add(row);
+      });
+
+      // Clear leaderboard link
+      const clearBtn = this.add.text(0, 26 + top5.length * 22 + 12, 'clear leaderboard', {
+        fontFamily: 'monospace', fontSize: '11px', color: '#443333', letterSpacing: 2,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      clearBtn.on('pointerover', () => clearBtn.setColor('#886666'));
+      clearBtn.on('pointerout',  () => clearBtn.setColor('#443333'));
+      clearBtn.on('pointerdown', () => {
+        SCORES.clear();
+        clearBtn.setText('cleared.');
+      });
+      lbContainer.add(clearBtn);
+
+      // Play Again and Quit buttons
+      const btnY1 = 530, btnY2 = 596;
+      const makeBtn = (y, label, color, cb) => {
+        const bg = this.add.rectangle(GW / 2, y, 360, 52, color, 0.95)
+          .setStrokeStyle(2, 0xaa4444).setInteractive({ useHandCursor: true }).setAlpha(0);
+        const txt = this.add.text(GW / 2, y, label, {
+          fontFamily: 'Impact', fontSize: '26px', color: '#ffffff', letterSpacing: 4,
+        }).setOrigin(0.5).setAlpha(0);
+        bg.on('pointerover', () => { bg.setFillStyle(0x662222); txt.setColor('#ffee88'); });
+        bg.on('pointerout',  () => { bg.setFillStyle(color);    txt.setColor('#ffffff'); });
+        bg.on('pointerdown', cb);
+        return { bg, txt };
+      };
+      const btn1 = makeBtn(btnY1, 'PLAY AGAIN',    0x550000, () => {
+        this.cameras.main.fadeOut(280, 0, 0, 0);
+        this.time.delayedCall(300, () => this.scene.start('StoryIntro'));
+      });
+      const btn2 = makeBtn(btnY2, 'QUIT TO MENU', 0x221111, () => {
+        this.cameras.main.fadeOut(280, 0, 0, 0);
+        this.time.delayedCall(300, () => this.scene.start('CharacterSelect'));
+      });
+
+      // Keyboard shortcuts for buttons
+      let btnFocus = 0;
+      const btnList = [btn1, btn2];
+      const navKeys = ['ENTER', 'SPACE'];
+      this.input.keyboard.on('keydown-ENTER', () => btnList[btnFocus].bg.emit('pointerdown'));
+      this.input.keyboard.on('keydown-SPACE', () => btnList[btnFocus].bg.emit('pointerdown'));
+      this.input.keyboard.on('keydown-DOWN',  () => { btnFocus = (btnFocus + 1) % 2; });
+      this.input.keyboard.on('keydown-UP',    () => { btnFocus = (btnFocus + 1) % 2; });
+
+      // Cinematic fade-in sequence
+      this.tweens.add({ targets: mainTitle, alpha: 1, scale: 1, duration: 700, delay: 200, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: statsLine, alpha: 1, duration: 600, delay: 1000 });
+      this.tweens.add({ targets: lbContainer, alpha: 1, duration: 600, delay: 1700 });
+      this.tweens.add({ targets: [btn1.bg, btn1.txt], alpha: 1, duration: 400, delay: 2300 });
+      this.tweens.add({ targets: [btn2.bg, btn2.txt], alpha: 1, duration: 400, delay: 2500 });
+
+      // Slow title pulse
+      this.tweens.add({
+        targets: mainTitle, alpha: { from: 0.85, to: 1 },
+        duration: 1200, delay: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    }
+
+    update(time, delta) {
+      const dt = delta / 1000;
+      const g = this.rainGfx;
+      g.clear();
+      g.lineStyle(1, 0x6644aa, 0.20);
+      for (const r of this.bgRain) {
+        r.y += r.v * dt;
+        if (r.y > GH + 10) { r.y = -10; r.x = Math.random() * GW; }
+        g.lineBetween(r.x, r.y, r.x - 3, r.y + 12);
+      }
+    }
+  }
 
   // =============================================================================
   // HELPERS
@@ -3876,7 +4525,7 @@
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, StoryIntroScene, CharacterSelectScene, GameScene, DeathScene],
+    scene: [BootScene, StoryIntroScene, CharacterSelectScene, GameScene, DeathScene, WinScene],
   };
 
   new Phaser.Game(config);
