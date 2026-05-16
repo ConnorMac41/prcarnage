@@ -1920,7 +1920,7 @@
 
     createMidBuildings() {
       if (this.midBuildingsGfx) this.midBuildingsGfx.destroy();
-      const mid = this.add.graphics().setScrollFactor(0.45);
+      const mid = this.add.graphics().setScrollFactor(0.45).setDepth(-5);
       this.midBuildingsGfx = mid;
       let mx = -200;
       const pal = LAYOUT_PALETTES[this.currentLayoutId] || LAYOUT_PALETTES[0];
@@ -2014,22 +2014,22 @@
         const h = 42;
         const boxX = sign.x, boxY = sign.y;
 
-        // Mount plate
-        const plate = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
+        // Mount plate — depth -4 keeps signs behind player/enemies on layout rebuild
+        const plate = this.add.graphics().setScrollFactor(SIGN_PARALLAX).setDepth(-4);
         plate.fillStyle(0x1a1a1e, 1);
         plate.fillRect(boxX - w / 2 - 4, boxY - 4, w + 8, h + 8);
         plate.fillStyle(0x000000, 0.55);
         plate.fillRect(boxX - w / 2 - 6, boxY + h + 4, w + 12, 3);
 
         // Sign body / frame
-        const frame = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
+        const frame = this.add.graphics().setScrollFactor(SIGN_PARALLAX).setDepth(-4);
         frame.fillStyle(0x070708, 1);
         frame.fillRect(boxX - w / 2, boxY, w, h);
         frame.lineStyle(2, col, 1);
         frame.strokeRect(boxX - w / 2, boxY, w, h);
 
         // Corner bolts
-        const bolts = this.add.graphics().setScrollFactor(SIGN_PARALLAX);
+        const bolts = this.add.graphics().setScrollFactor(SIGN_PARALLAX).setDepth(-4);
         bolts.fillStyle(0x666666, 1);
         const bx1 = boxX - w / 2 - 1, bx2 = boxX + w / 2 + 1;
         const by1 = boxY - 1,         by2 = boxY + h + 1;
@@ -2045,12 +2045,12 @@
         const txtGlow = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
           color: colHex, stroke: colHex, strokeThickness: 8,
-        }).setOrigin(0.5).setAlpha(0.45).setScrollFactor(SIGN_PARALLAX);
+        }).setOrigin(0.5).setAlpha(0.45).setScrollFactor(SIGN_PARALLAX).setDepth(-4);
 
         const txt = this.add.text(boxX, boxY + h / 2, sign.text, {
           fontFamily: 'Impact', fontSize: '22px',
           color: '#ffffff',
-        }).setOrigin(0.5).setScrollFactor(SIGN_PARALLAX);
+        }).setOrigin(0.5).setScrollFactor(SIGN_PARALLAX).setDepth(-4);
 
         // Subtle flicker
         this.tweens.add({
