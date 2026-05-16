@@ -96,7 +96,7 @@
   const PLAYER_FIRE_CD = 180;// pistol cooldown (default for non-Connor)
   const CONNOR_SHOTGUN_CD = 600; // v6: Connor's shotgun cooldown
   const CONNOR_SHOTGUN_PELLETS = 5; // v6: pellets per shotgun blast
-  const CONNOR_SHOTGUN_SPREAD = 0.28; // v8: tighter cone (was 0.55) — pellets cluster on distant/vertical targets instead of spraying
+  const CONNOR_SHOTGUN_SPREAD = 0.48; // v9: widened back from 0.28 — actual shotgun spread, pellets diverge visibly at range
   const BULLET_TIME_FACTOR = 0.25; // world timescale during bullet time
   const BULLET_TIME_DRAIN = 55;    // energy drained per second while active
   const BULLET_TIME_REGEN = 22;    // energy regen per second when not active
@@ -275,11 +275,24 @@
   ];
 
   // =============================================================================
-  // LEVEL LAYOUTS — three visual/gameplay variants.
-  // Layout 0 = Northern Quarter (waves 1-4)
-  // Layout 1 = Deansgate / Salford (waves 5-7)
-  // Layout 2 = Industrial / Ancoats (waves 8+)
+  // LEVEL LAYOUTS — five visual/gameplay variants.
+  // Layout 0 = Northern Quarter (waves 1-2)
+  // Layout 1 = Spinning Field   (waves 3-4)
+  // Layout 2 = City Centre      (waves 5-6)
+  // Layout 3 = Curry Mile       (waves 7-8)
+  // Layout 4 = Arndale          (waves 9-10)
   // =============================================================================
+  const SKY_COLORS = ['#05060a', '#030c15', '#0a0514', '#120705', '#140308'];
+
+  // Per-layout building colour palettes for createMidBuildings()
+  const LAYOUT_PALETTES = [
+    { bricks: [0x2a1818, 0x331a14, 0x261212], joint: 0x1a0c0c, winLit: 0x776622, winDark: 0x1a1a10, shop: 0x151010 },
+    { bricks: [0x182028, 0x14202e, 0x101a24], joint: 0x0c141a, winLit: 0x223355, winDark: 0x0a1018, shop: 0x0c1018 },
+    { bricks: [0x201828, 0x281a30, 0x181224], joint: 0x140a1a, winLit: 0x552266, winDark: 0x120a18, shop: 0x100814 },
+    { bricks: [0x281808, 0x30200a, 0x241006], joint: 0x1a0c04, winLit: 0x885522, winDark: 0x1a1008, shop: 0x181008 },
+    { bricks: [0x280a08, 0x300c0a, 0x240606], joint: 0x1a0404, winLit: 0x882222, winDark: 0x1a0808, shop: 0x180808 },
+  ];
+
   const PLATFORM_LAYOUTS = [
     // Layout 0 (original)
     [
@@ -347,6 +360,51 @@
       { x: 1800, y: 246, w: 250, kind: 'rooftop' },
       { x: 2440, y: 263, w: 210, kind: 'rooftop' },
     ],
+    // Layout 3 (Curry Mile) — asymmetric, clusters of platforms with wider gaps
+    [
+      { x: 180,  y: 545, w: 50,  kind: 'bin' },
+      { x: 350,  y: 510, w: 120, kind: 'platform' },
+      { x: 560,  y: 545, w: 50,  kind: 'bin' },
+      { x: 900,  y: 510, w: 220, kind: 'platform' },
+      { x: 1200, y: 545, w: 50,  kind: 'bin' },
+      { x: 1580, y: 510, w: 100, kind: 'platform' },
+      { x: 1750, y: 545, w: 50,  kind: 'bin' },
+      { x: 2100, y: 510, w: 170, kind: 'platform' },
+      { x: 2360, y: 545, w: 50,  kind: 'bin' },
+      { x: 2700, y: 510, w: 180, kind: 'platform' },
+      { x: 2920, y: 545, w: 50,  kind: 'bin' },
+      { x: 660,  y: 415, w: 110, kind: 'fireescape' },
+      { x: 1260, y: 400, w: 170, kind: 'platform' },
+      { x: 1700, y: 385, w: 130, kind: 'fireescape' },
+      { x: 2300, y: 405, w: 150, kind: 'platform' },
+      { x: 2820, y: 390, w: 100, kind: 'fireescape' },
+      { x: 460,  y: 280, w: 160, kind: 'rooftop' },
+      { x: 1050, y: 262, w: 200, kind: 'rooftop' },
+      { x: 1830, y: 248, w: 260, kind: 'rooftop' },
+      { x: 2520, y: 270, w: 180, kind: 'rooftop' },
+    ],
+    // Layout 4 (Arndale — final push) — more vertical, taller platforms, brutal gaps
+    [
+      { x: 240,  y: 545, w: 50,  kind: 'bin' },
+      { x: 440,  y: 500, w: 130, kind: 'platform' },
+      { x: 700,  y: 545, w: 50,  kind: 'bin' },
+      { x: 1020, y: 500, w: 190, kind: 'platform' },
+      { x: 1300, y: 545, w: 50,  kind: 'bin' },
+      { x: 1640, y: 500, w: 110, kind: 'platform' },
+      { x: 1900, y: 545, w: 50,  kind: 'bin' },
+      { x: 2180, y: 500, w: 160, kind: 'platform' },
+      { x: 2480, y: 545, w: 50,  kind: 'bin' },
+      { x: 2730, y: 500, w: 200, kind: 'platform' },
+      { x: 720,  y: 408, w: 90,  kind: 'fireescape' },
+      { x: 1340, y: 390, w: 180, kind: 'platform' },
+      { x: 1720, y: 374, w: 120, kind: 'fireescape' },
+      { x: 2380, y: 395, w: 140, kind: 'platform' },
+      { x: 2820, y: 372, w: 90,  kind: 'fireescape' },
+      { x: 520,  y: 258, w: 200, kind: 'rooftop' },
+      { x: 1120, y: 242, w: 240, kind: 'rooftop' },
+      { x: 1850, y: 232, w: 260, kind: 'rooftop' },
+      { x: 2500, y: 252, w: 190, kind: 'rooftop' },
+    ],
   ];
 
   const NEON_SIGN_LAYOUTS = [
@@ -380,12 +438,34 @@
       { x: 2300, y: 418, text: 'LONGSIGHT',   color: 0x22eeff },
       { x: 2700, y: 378, text: 'WHALLEY RANGE',color: 0xffee00 },
     ],
+    // Layout 3 (Curry Mile)
+    [
+      { x: 295,  y: 362, text: 'RUSHOLME',     color: 0xff6600 },
+      { x: 720,  y: 408, text: 'WILMSLOW RD',  color: 0xff3300 },
+      { x: 1120, y: 348, text: 'NAAN STOP',    color: 0xffaa00 },
+      { x: 1520, y: 392, text: 'SHERE KHAN',   color: 0xff4400 },
+      { x: 1905, y: 358, text: 'PALACE',       color: 0xffcc22 },
+      { x: 2300, y: 412, text: 'SANAM',        color: 0xff8800 },
+      { x: 2705, y: 372, text: 'LAHORE',       color: 0xff2200 },
+    ],
+    // Layout 4 (Arndale — endgame)
+    [
+      { x: 300,  y: 365, text: 'ARNDALE',      color: 0xff2200 },
+      { x: 720,  y: 410, text: 'MKT STREET',   color: 0xff0000 },
+      { x: 1125, y: 345, text: 'SHUDEHILL',    color: 0xcc2200 },
+      { x: 1525, y: 390, text: 'EXCHANGE SQ',  color: 0xff3311 },
+      { x: 1910, y: 356, text: 'TRAM STOP',    color: 0xff1100 },
+      { x: 2305, y: 412, text: 'SELFRIDGES',   color: 0xee2200 },
+      { x: 2705, y: 375, text: 'THE END',      color: 0xff0000 },
+    ],
   ];
 
   const LEVEL_SEEDS = [
     { sky: 1337, mid: 4242, near: 9090 },
     { sky: 2222, mid: 5555, near: 8888 },
     { sky: 3333, mid: 6666, near: 1111 },
+    { sky: 4444, mid: 7777, near: 2222 },
+    { sky: 5555, mid: 8888, near: 3333 },
   ];
 
   // =============================================================================
@@ -437,13 +517,15 @@
     g.fillEllipse(cx - 16, cy - 2, 8, 22);
     g.fillStyle(skin);
     g.fillCircle(cx - 16, cy + 10, 3);
-    // RIGHT arm — also drawn as a real arm (the rotating gun-arm overlay
-    // covers it during gameplay; the static sprite still needs an arm so
-    // character select cards and HUD portraits look correct).
-    g.fillStyle(jacket);
-    g.fillEllipse(cx + 16, cy - 2, 8, 22);
-    g.fillStyle(skin);
-    g.fillCircle(cx + 16, cy + 10, 3);
+    // RIGHT arm — shown on char-select portraits but hidden on the gameplay
+    // sprite (opt.hideRightArm) because the rotating connorArm overlay
+    // replaces it at runtime, and both visible = 3-arm glitch.
+    if (!opt.hideRightArm) {
+      g.fillStyle(jacket);
+      g.fillEllipse(cx + 16, cy - 2, 8, 22);
+      g.fillStyle(skin);
+      g.fillCircle(cx + 16, cy + 10, 3);
+    }
     // Neck
     g.fillStyle(skin);
     g.fillRect(cx - 3, cy - 16, 6, 5);
@@ -1066,7 +1148,6 @@
       for (let i = 0; i < sr; i++) ch[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
 
-      this._startAmbient();
     },
 
     // Quiet 80Hz sine drone running constantly under everything
@@ -1591,7 +1672,7 @@
     create() {
       this.physics.world.setBounds(0, 0, WORLD_W, GH);
       this.cameras.main.setBounds(0, 0, WORLD_W, GH);
-      this.cameras.main.setBackgroundColor('#05060a');
+      this.cameras.main.setBackgroundColor(SKY_COLORS[0]);
 
       // Generate textures
       this.makeAllTextures();
@@ -1654,8 +1735,8 @@
     // -----------------------------------------------------------------------
     makeAllTextures() {
       // Player textures — all 6 characters get a sprite
-      makeCharTexture(this, 'player_connor',          drawConnor,  {});
-      makeCharTexture(this, 'player_connor_gangster', drawConnor,  { gangster: true });
+      makeCharTexture(this, 'player_connor',          drawConnor,  { hideRightArm: true });
+      makeCharTexture(this, 'player_connor_gangster', drawConnor,  { gangster: true, hideRightArm: true });
       makeCharTexture(this, 'player_callum',          drawCallum);
       makeCharTexture(this, 'player_finley',          drawFinley);
       makeCharTexture(this, 'player_declan',          drawDeclan);
@@ -1842,18 +1923,18 @@
       const mid = this.add.graphics().setScrollFactor(0.45);
       this.midBuildingsGfx = mid;
       let mx = -200;
+      const pal = LAYOUT_PALETTES[this.currentLayoutId] || LAYOUT_PALETTES[0];
       const seed = (LEVEL_SEEDS[this.currentLayoutId] || LEVEL_SEEDS[0]).mid;
       const rng = mulberry32(seed);
       while (mx < WORLD_W + 200) {
         const bw = 140 + rng() * 140;
         const bh = 240 + rng() * 120;
         const by = GROUND_Y - bh;
-        // Brick color variants
-        const brickCol = [0x2a1818, 0x331a14, 0x261212][Math.floor(rng() * 3)];
+        const brickCol = pal.bricks[Math.floor(rng() * pal.bricks.length)];
         mid.fillStyle(brickCol, 1);
         mid.fillRect(mx, by, bw, bh);
         // Brick joints
-        mid.fillStyle(0x1a0c0c, 1);
+        mid.fillStyle(pal.joint, 1);
         for (let by2 = by; by2 < by + bh; by2 += 10) {
           mid.fillRect(mx, by2, bw, 1);
         }
@@ -1865,9 +1946,8 @@
           for (let wx = mx + 20; wx < mx + bw - 30; wx += 44) {
             if (rng() > 0.4) {
               const lit = rng() > 0.5;
-              mid.fillStyle(lit ? 0x776622 : 0x1a1a10, 1);
+              mid.fillStyle(lit ? pal.winLit : pal.winDark, 1);
               mid.fillRect(wx, wy, 20, 26);
-              // window cross
               mid.fillStyle(0x050505, 1);
               mid.fillRect(wx + 9, wy, 2, 26);
               mid.fillRect(wx, wy + 12, 20, 2);
@@ -1875,9 +1955,8 @@
           }
         }
         // Ground floor (shopfront) darker
-        mid.fillStyle(0x151010, 1);
+        mid.fillStyle(pal.shop, 1);
         mid.fillRect(mx, by + bh - 60, bw, 60);
-        // Shopfront door
         mid.fillStyle(0x0a0a0a, 1);
         mid.fillRect(mx + bw / 2 - 12, by + bh - 56, 24, 56);
         mx += bw + 6 + rng() * 20;
@@ -3216,7 +3295,9 @@
         const playerAbove = (this.player.y < enemy.y - 60);
         const onSomething = enemy.body.blocked.down || enemy.body.touching.down;
         if (playerAbove && onSomething && time > data.nextAiJumpAt && dist < 600) {
-          enemy.setVelocityY(-520);
+          enemy.setVelocityY(-620);
+          // Drift toward player so they land on the same platform
+          enemy.setVelocityX(dir * Math.min(180, dist * 0.5));
           data.nextAiJumpAt = time + 800 + Math.random() * 600;
         }
 
@@ -3929,8 +4010,10 @@
           if (this.gameOver) return;
           this.wave += 1;
           // Switch layout at wave 5 and wave 8
-          if (this.wave === 5)      this.switchLayout(1);
-          else if (this.wave === 8) this.switchLayout(2);
+          if      (this.wave === 3) this.switchLayout(1);
+          else if (this.wave === 5) this.switchLayout(2);
+          else if (this.wave === 7) this.switchLayout(3);
+          else if (this.wave === 9) this.switchLayout(4);
           this.spawnWave(this.wave);
           this.showWaveBanner(this.wave);
           this.waveTransitioning = false;
@@ -4044,18 +4127,18 @@
       }
     }
 
-    // Swap platforms, mid-buildings, and neon signs to a new layout.
+    // Swap platforms, mid-buildings, neon signs, and sky to a new layout.
     switchLayout(id) {
       if (id === this.currentLayoutId) return;
       this.currentLayoutId = id;
-      // Flash to mask the swap
       this.cameras.main.flash(260, 255, 255, 255);
       this.time.delayedCall(130, () => {
+        // Sky colour — flash masks the instant change
+        this.cameras.main.setBackgroundColor(SKY_COLORS[id] || SKY_COLORS[0]);
         this.createMidBuildings();
         this.createNeonSigns();
         this.createPlatforms();
         this._setupPlatformColliders();
-        // Nudge player to ground in case they were on a now-deleted platform
         if (this.player.y > GROUND_Y - 20) this.player.y = GROUND_Y - 50;
       });
     }
@@ -4300,21 +4383,32 @@
         });
       }
 
-      const retry = this.add.text(GW / 2, GH - 80, 'CLICK TO RETRY', {
+      const retry = this.add.text(GW / 2, GH - 100, 'CLICK TO RETRY', {
         fontFamily: 'Impact', fontSize: '28px', color: '#ffffff',
         stroke: '#550000', strokeThickness: 2, letterSpacing: 3,
       }).setOrigin(0.5);
       this.tweens.add({ targets: retry, alpha: { from: 0.4, to: 1 }, duration: 700, yoyo: true, repeat: -1 });
 
-      this.add.text(GW / 2, GH - 44, 'ESC TO PICK ANOTHER CHARACTER', {
-        fontFamily: 'monospace', fontSize: '12px', color: '#554040', letterSpacing: 2,
+      // Quit button — explicit mouse target so mobile players can exit
+      const quitBg = this.add.rectangle(GW / 2, GH - 58, 260, 36, 0x220a0a, 0.9)
+        .setStrokeStyle(1, 0x553333).setInteractive({ useHandCursor: true });
+      const quitTxt = this.add.text(GW / 2, GH - 58, 'QUIT TO CHARACTER SELECT', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#775555', letterSpacing: 2,
       }).setOrigin(0.5);
+      let quitting = false;
+      quitBg.on('pointerover', () => { quitBg.setFillStyle(0x441414); quitTxt.setColor('#aa7777'); });
+      quitBg.on('pointerout',  () => { quitBg.setFillStyle(0x220a0a); quitTxt.setColor('#775555'); });
+      quitBg.on('pointerdown', () => { quitting = true; this.scene.start('CharacterSelect'); });
 
       main.setScale(0.6);
       this.tweens.add({ targets: main, scale: 1, duration: 700, ease: 'Back.easeOut' });
 
-      this.input.on('pointerdown', () => {
-        this.scene.start('Game', { character: p.character });
+      // Guard: 1.2s before click-to-retry activates (avoids accidental retry during death animation)
+      this.time.delayedCall(1200, () => {
+        this.input.on('pointerdown', () => {
+          if (quitting) return;
+          this.scene.start('Game', { character: p.character });
+        });
       });
       this.input.keyboard.on('keydown-ESC', () => {
         this.scene.start('CharacterSelect');
@@ -4374,7 +4468,7 @@
         this.add.text(GW / 2, 120, 'MANCHESTER CLEARED', {
           fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '82px',
           color: '#cc0000', stroke: '#cc0000', strokeThickness: l.thick,
-        }).setOrigin(0.5).setAlpha(0);
+        }).setOrigin(0.5).setAlpha(l.a);
       });
       const mainTitle = this.add.text(GW / 2, 120, 'MANCHESTER CLEARED', {
         fontFamily: 'Impact, "Arial Black", sans-serif', fontSize: '82px',
@@ -4458,7 +4552,7 @@
       this.input.keyboard.on('keydown-ENTER', () => btnList[btnFocus].bg.emit('pointerdown'));
       this.input.keyboard.on('keydown-SPACE', () => btnList[btnFocus].bg.emit('pointerdown'));
       this.input.keyboard.on('keydown-DOWN',  () => { btnFocus = (btnFocus + 1) % 2; });
-      this.input.keyboard.on('keydown-UP',    () => { btnFocus = (btnFocus + 1) % 2; });
+      this.input.keyboard.on('keydown-UP',    () => { btnFocus = (btnFocus + 1) % 2; }); // only 2 buttons — both directions toggle
 
       // Cinematic fade-in sequence
       this.tweens.add({ targets: mainTitle, alpha: 1, scale: 1, duration: 700, delay: 200, ease: 'Back.easeOut' });
