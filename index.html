@@ -181,7 +181,7 @@
       id: 'finley', name: 'FINLEY', unlocked: true,
       stats: { speed: 10, hp: 4, damage: 6 },
       powerup: 'GUINNESS HERO',
-      powerupDesc: 'Invincible, golden glow (6s)',
+      powerupDesc: 'Invincible, -30% speed, golden glow (6s)',
     },
     declan: {
       id: 'declan', name: 'DECLAN', unlocked: true,
@@ -2523,8 +2523,8 @@
       this.player.setTexture('player_' + newCharId);
       const stats = CHARACTERS[newCharId].stats;
       this.playerState.id = newCharId;
-      this.playerState.hp = 100;          // v6 spec: switch resets HP to 100
-      this.playerState.maxHp = 100;
+      this.playerState.hp = statToHP(stats.hp);
+      this.playerState.maxHp = statToHP(stats.hp);
       this.playerState.baseSpeed = statToSpeed(stats.speed);
       this.playerState.damage = statToDamage(stats.damage);
       this.playerState.invincibleUntil = this.time.now + 600; // brief grace
@@ -3168,8 +3168,6 @@
           this.player.setVelocityY(jumpVel);
           ps.jumpsRemaining -= 1;
           AUDIO.jump();
-          // Coyote first-jump still costs a charge
-          if (inCoyote && !onGround) ps.jumpsRemaining = Math.max(0, ps.jumpsRemaining - 0);
           // Quick spark on the second jump for feedback
           if (!onGround) {
             this.sparkFX.emitParticleAt(this.player.x, this.player.y + 18, 6);
@@ -4552,7 +4550,7 @@
       this.input.keyboard.on('keydown-ENTER', () => btnList[btnFocus].bg.emit('pointerdown'));
       this.input.keyboard.on('keydown-SPACE', () => btnList[btnFocus].bg.emit('pointerdown'));
       this.input.keyboard.on('keydown-DOWN',  () => { btnFocus = (btnFocus + 1) % 2; });
-      this.input.keyboard.on('keydown-UP',    () => { btnFocus = (btnFocus + 1) % 2; }); // only 2 buttons — both directions toggle
+      this.input.keyboard.on('keydown-UP',    () => { btnFocus = (btnFocus + 1) % 2; });
 
       // Cinematic fade-in sequence
       this.tweens.add({ targets: mainTitle, alpha: 1, scale: 1, duration: 700, delay: 200, ease: 'Back.easeOut' });
